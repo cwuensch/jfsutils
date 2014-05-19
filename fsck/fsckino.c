@@ -1970,14 +1970,27 @@ int validate_record_fileset_inode(uint32_t inonum, uint32_t inoidx,
 			     agg_recptr->this_inode.all_blks);
 #endif
 
-			fsck_send_msg(fsck_BADKEYS,
-				      fsck_ref_msg(ino_msg_info_ptr->msg_inotyp),
-				      fsck_ref_msg(ino_msg_info_ptr->msg_inopfx),
+			fsck_send_msg(mc_WRONGNBLOCKSVALUE,
 				      ino_msg_info_ptr->msg_inonum,
-				      9);
+				      inoptr->di_nblocks,
+				      agg_recptr->this_inode.all_blks);
 
-			inorecptr->selected_to_rls = 1;
-			inorecptr->ignore_alloc_blks = 1;
+			display_paths(inoidx, inorecptr, ino_msg_info_ptr);
+
+			if (agg_recptr->parm_options_mc_fixwrongnblocks)
+			{
+				fix_inode(inonum, agg_recptr->this_inode.all_blks);
+				inoptr->di_nblocks = agg_recptr->this_inode.all_blks;
+
+				fsck_send_msg(mc_FIXEDNBLOCKSVALUE,
+				      ino_msg_info_ptr->msg_inonum,
+				      agg_recptr->this_inode.all_blks);
+			}
+			else
+			{
+				inorecptr->selected_to_rls = 1;
+				inorecptr->ignore_alloc_blks = 1;
+			}
 			agg_recptr->corrections_needed = 1;
 			bad_size = -1;
 		} else {

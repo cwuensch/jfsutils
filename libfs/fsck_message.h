@@ -51,8 +51,8 @@ extern int v_send_msg(int, const char *, int, ...);
 #define avail_for_debug_only_595              595
 #define avail_for_debug_only_596              596
 #define avail_for_debug_only_597              597
-#define avail_for_debug_only_598              598
-#define avail_for_debug_only_599              599
+#define mc_WRONGNBLOCKSVALUE                  598
+#define mc_FIXEDNBLOCKSVALUE                  599
 
 
 // symbolic constants for text message inserts

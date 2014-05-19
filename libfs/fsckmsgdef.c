@@ -144,7 +144,7 @@ struct fsck_message msg_defs[fsck_highest_msgid_defined+1] = {
   /* 139 */ { fsck_WILLFIXRIBADFMT, "The root directory has an invalid format.  Will correct.", fsck_quiet},
   /* 140 */ { fsck_WILLRELEASEINOS, "cannot recover files and/or directories %d through %d.  Will release.", fsck_quiet},
   /* 141 */ { fsck_BADINOCLAIMSDUPSF, "File claims cross linked block(s).", fsck_quiet},
-  /* 142 */ { fsck_BADINODATAFORMAT, "cannot repair the data format error(s) in this file.", fsck_quiet},
+  /* 142 */ { fsck_BADINODATAFORMAT, "cannot repair the data format error(s) in this file (%d).", fsck_quiet},
   /* 143 */ { fsck_BADINOFORMAT, "cannot repair the format error(s) in this file.", fsck_quiet},
   /* 144 */ { fsck_CANTREPAIRINO, "cannot repair %s%s%u.", fsck_quiet},
   /* 145 */ { fsck_DRIVEID, "The current device is:  %s", fsck_quiet},
@@ -605,6 +605,6 @@ struct fsck_message msg_defs[fsck_highest_msgid_defined+1] = {
   /* 595 */ { avail_for_debug_only_595, "*undefined*", fsck_debug},
   /* 596 */ { avail_for_debug_only_596, "*undefined*", fsck_debug},
   /* 597 */ { avail_for_debug_only_597, "*undefined*", fsck_debug},
-  /* 598 */ { avail_for_debug_only_598, "*undefined*", fsck_debug},
-  /* 599 */ { avail_for_debug_only_599, "*undefined*", fsck_debug},
+  /* 598 */ { mc_WRONGNBLOCKSVALUE, "[MC1] %u: inode has incorrect nblocks value (nblocks=%lld, real=%lld).", fsck_quiet},
+  /* 599 */ { mc_FIXEDNBLOCKSVALUE, "[MC2] %u: inode's nblocks value has been set to: %lld.", fsck_quiet},
 };

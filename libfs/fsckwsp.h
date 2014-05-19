@@ -517,7 +517,9 @@ struct fsck_agg_record {
 	unsigned rootdir_rebuilt:1;
 	unsigned stdout_redirected:1;
 	unsigned parm_options_logredo_only:1;
-	unsigned unused_4_2:4;
+	unsigned parm_options_mc_fixwrongnblocks:1;
+	unsigned parm_options_mc_firststepsonly:1;
+	unsigned unused_2_2:2;
 	/* end of flag bytes  */
 	int path_buffer_length;	/* length of path_buffer      */
 	char *path_buffer;	/* storage allocated (if any) for

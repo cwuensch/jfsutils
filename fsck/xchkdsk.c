@@ -200,6 +200,13 @@ int exit_value = FSCK_OK;
  *                         version information
  *                         print version information and exit
  *
+ *                         [ -t ]
+ *                         if nblocks value differs from real block number
+ *                         overwrite the value in inode instead of realeasing
+ *
+ *                         [ -z ]
+ *                         perform only the first 4 steps
+ *
  * RETURNS:
  *      success:                   FSCK_OK (0)
  *      log successfully replayed: FSCK_CORRECTED (1)
@@ -350,7 +357,7 @@ int main(int argc, char **argv)
 	if (agg_recptr->fsck_is_done)
 		goto phases_complete;
 	rc = phase4_processing();
-	if (agg_recptr->fsck_is_done)
+	if (agg_recptr->fsck_is_done || agg_recptr->parm_options_mc_firststepsonly)
 		goto phases_complete;
 	rc = phase5_processing();
 	if (agg_recptr->fsck_is_done)
@@ -1199,7 +1206,7 @@ int report_problems_setup_repairs()
 			if (this_inorec->ignore_alloc_blks) {
 				/* corrupt tree */
 				if (this_inorec->inode_type == file_inode) {
-					fsck_send_msg(fsck_BADINODATAFORMAT);
+					fsck_send_msg(fsck_BADINODATAFORMAT, 1);
 				} else if (this_inorec->inode_type ==
 					   directory_inode)
 				{
@@ -1211,7 +1218,7 @@ int report_problems_setup_repairs()
 			if (this_inorec->inline_data_err) {
 				/* invalid inline data spec */
 				if (this_inorec->inode_type == file_inode) {
-					fsck_send_msg(fsck_BADINODATAFORMAT);
+					fsck_send_msg(fsck_BADINODATAFORMAT, 2);
 				} else if (this_inorec->inode_type ==
 					   directory_inode)
 				{
@@ -1674,7 +1681,7 @@ void parse_parms(int argc, char **argv)
 	int c;
 	char *device_name = NULL;
 	FILE *file_p = NULL;
-	char *short_opts = "adfj:noprvVy";
+	char *short_opts = "adfj:noprvVytz";
 	struct option long_opts[] = {
 		{ "omit_journal_replay", no_argument, NULL, 'o'},
 		{ "replay_journal_only", no_argument, NULL, 'J'},
@@ -1788,7 +1795,22 @@ void parse_parms(int argc, char **argv)
 			 */
 			break;
 
-		default:
+		case 't':
+		/******************
+		* if nblocks value differs from real block number
+		* overwrite the value in inode instead of realeasing
+ 		 ******************/
+			agg_recptr->parm_options_mc_fixwrongnblocks = 1;
+			break;
+
+		case 'z':
+		/******************
+		* perform only the first 4 steps
+		 ******************/
+			agg_recptr->parm_options_mc_firststepsonly = 1;
+			break;
+
+    default:
 			fsck_usage();
 		}
 	}
@@ -3077,7 +3099,7 @@ void ask_continue()
 
 void fsck_usage()
 {
-	printf("\nUsage:  %s [-afnpvV] [-j journal_device] [--omit_journal_replay] "
+	printf("\nUsage:  %s [-afnpvVtz] [-j journal_device] [--omit_journal_replay] "
 	       "[--replay_journal_only] device\n", program_name);
 	printf("\nEmergency help:\n"
 	       " -a                 Automatic repair.\n"
@@ -3087,6 +3109,8 @@ void fsck_usage()
 	       " -p                 Automatic repair.\n"
 	       " -v                 Be verbose.\n"
 	       " -V                 Print version information only.\n"
+	       " -t                 Fix inodes, if nblocks value differs from real block number.\n"
+	       " -z                 Perform only the first 4 steps.\n"
 	       " --omit_journal_replay    Omit transaction log replay.\n"
 	       " --replay_journal_only    Only replay the transaction log.\n");
 	exit(FSCK_USAGE_ERROR);
