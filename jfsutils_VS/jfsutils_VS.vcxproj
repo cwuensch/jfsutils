@@ -1,0 +1,169 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\fscklog\display.c" />
+    <ClCompile Include="..\fscklog\extract.c" />
+    <ClCompile Include="..\fscklog\fscklog.c" />
+    <ClCompile Include="..\fsck\dirindex.c" />
+    <ClCompile Include="..\fsck\fsckbmap.c" />
+    <ClCompile Include="..\fsck\fsckconn.c" />
+    <ClCompile Include="..\fsck\fsckdire.c" />
+    <ClCompile Include="..\fsck\fsckdtre.c" />
+    <ClCompile Include="..\fsck\fsckea.c" />
+    <ClCompile Include="..\fsck\fsckimap.c" />
+    <ClCompile Include="..\fsck\fsckino.c" />
+    <ClCompile Include="..\fsck\fsckmeta.c" />
+    <ClCompile Include="..\fsck\fsckpfs.c" />
+    <ClCompile Include="..\fsck\fsckruns.c" />
+    <ClCompile Include="..\fsck\fsckwsp.c" />
+    <ClCompile Include="..\fsck\fsckxtre.c" />
+    <ClCompile Include="..\fsck\fsck_message.c" />
+    <ClCompile Include="..\fsck\xchkdsk.c" />
+    <ClCompile Include="..\libfs\devices.c" />
+    <ClCompile Include="..\libfs\diskmap.c" />
+    <ClCompile Include="..\libfs\fsckmsgdef.c" />
+    <ClCompile Include="..\libfs\fssubs.c" />
+    <ClCompile Include="..\libfs\inode.c" />
+    <ClCompile Include="..\libfs\jfs_endian.c" />
+    <ClCompile Include="..\libfs\logform.c" />
+    <ClCompile Include="..\libfs\logredo.c" />
+    <ClCompile Include="..\libfs\log_dump.c" />
+    <ClCompile Include="..\libfs\log_map.c" />
+    <ClCompile Include="..\libfs\log_read.c" />
+    <ClCompile Include="..\libfs\log_work.c" />
+    <ClCompile Include="..\libfs\message.c" />
+    <ClCompile Include="..\libfs\open_by_label.c" />
+    <ClCompile Include="..\libfs\super.c" />
+    <ClCompile Include="..\libfs\unicode_to_utf8.c" />
+    <ClCompile Include="..\libfs\uniupr.c" />
+    <ClCompile Include="..\libfs\utilsubs.c" />
+    <ClCompile Include="..\logdump\helpers.c" />
+    <ClCompile Include="..\logdump\logdump.c" />
+    <ClCompile Include="..\mkfs\initmap.c" />
+    <ClCompile Include="..\mkfs\inodemap.c" />
+    <ClCompile Include="..\mkfs\inodes.c" />
+    <ClCompile Include="..\mkfs\mkfs.c" />
+    <ClCompile Include="..\tune\super.c" />
+    <ClCompile Include="..\tune\tune.c" />
+    <ClCompile Include="..\xpeek\alter.c" />
+    <ClCompile Include="..\xpeek\directory.c" />
+    <ClCompile Include="..\xpeek\display.c" />
+    <ClCompile Include="..\xpeek\dmap.c" />
+    <ClCompile Include="..\xpeek\fsckcbbl.c" />
+    <ClCompile Include="..\xpeek\help.c" />
+    <ClCompile Include="..\xpeek\iag.c" />
+    <ClCompile Include="..\xpeek\inode.c" />
+    <ClCompile Include="..\xpeek\io.c" />
+    <ClCompile Include="..\xpeek\super.c" />
+    <ClCompile Include="..\xpeek\super2.c" />
+    <ClCompile Include="..\xpeek\ui.c" />
+    <ClCompile Include="..\xpeek\xpeek.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\fscklog\jfs_fscklog.h" />
+    <ClInclude Include="..\fsck\fsckpfs.h" />
+    <ClInclude Include="..\fsck\xchkdsk.h" />
+    <ClInclude Include="..\fsck\xfsck.h" />
+    <ClInclude Include="..\fsck\xfsckint.h" />
+    <ClInclude Include="..\include\jfs_btree.h" />
+    <ClInclude Include="..\include\jfs_byteorder.h" />
+    <ClInclude Include="..\include\jfs_dinode.h" />
+    <ClInclude Include="..\include\jfs_dmap.h" />
+    <ClInclude Include="..\include\jfs_dtree.h" />
+    <ClInclude Include="..\include\jfs_filsys.h" />
+    <ClInclude Include="..\include\jfs_imap.h" />
+    <ClInclude Include="..\include\jfs_logmgr.h" />
+    <ClInclude Include="..\include\jfs_superblock.h" />
+    <ClInclude Include="..\include\jfs_types.h" />
+    <ClInclude Include="..\include\jfs_unicode.h" />
+    <ClInclude Include="..\include\jfs_version.h" />
+    <ClInclude Include="..\include\jfs_xtree.h" />
+    <ClInclude Include="..\libfs\debug.h" />
+    <ClInclude Include="..\libfs\devices.h" />
+    <ClInclude Include="..\libfs\diskmap.h" />
+    <ClInclude Include="..\libfs\fsckcbbl.h" />
+    <ClInclude Include="..\libfs\fscklog.h" />
+    <ClInclude Include="..\libfs\fsckwsp.h" />
+    <ClInclude Include="..\libfs\fsck_base.h" />
+    <ClInclude Include="..\libfs\fsck_message.h" />
+    <ClInclude Include="..\libfs\inode.h" />
+    <ClInclude Include="..\libfs\jfs_endian.h" />
+    <ClInclude Include="..\libfs\libjufs.h" />
+    <ClInclude Include="..\libfs\logform.h" />
+    <ClInclude Include="..\libfs\logredo.h" />
+    <ClInclude Include="..\libfs\message.h" />
+    <ClInclude Include="..\libfs\super.h" />
+    <ClInclude Include="..\libfs\unicode_to_utf8.h" />
+    <ClInclude Include="..\libfs\utilsubs.h" />
+    <ClInclude Include="..\mkfs\initmap.h" />
+    <ClInclude Include="..\mkfs\inodemap.h" />
+    <ClInclude Include="..\mkfs\inodes.h" />
+    <ClInclude Include="..\xpeek\xpeek.h" />
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{3032205D-61A9-4096-8EA0-DF54610DED91}</ProjectGuid>
+    <Keyword>MakeFileProj</Keyword>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Makefile</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Makefile</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <NMakeBuildCommandLine>..\source\build_TMS.bat /debug /quiet</NMakeBuildCommandLine>
+    <NMakeCleanCommandLine>del /Q bin obj</NMakeCleanCommandLine>
+    <NMakeReBuildCommandLine>..\source\build_TMS.bat /debug /quiet</NMakeReBuildCommandLine>
+    <NMakePreprocessorDefinitions>__GNUC__;FULLDEBUG;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
+    <ExecutablePath />
+    <IncludePath>..;../include;../libfs;$(TFRoot)\gccForTMS\crosstool\include;$(TFRoot)\Cygwin_mini\lib\gcc\i686-pc-cygwin\3.4.4\include;$(TFRoot)\gccForTMS\crosstool\lib\gcc\mipsel-linux-uclibc\3.4.6\include</IncludePath>
+    <ReferencePath />
+    <LibraryPath>
+    </LibraryPath>
+    <SourcePath />
+    <ExcludePath>$(ExcludePath)</ExcludePath>
+    <NMakeOutput>Erfolg.exe</NMakeOutput>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <NMakeBuildCommandLine>..\source\build_TMS.bat /quiet</NMakeBuildCommandLine>
+    <NMakeCleanCommandLine>del /Q bin obj</NMakeCleanCommandLine>
+    <NMakeReBuildCommandLine>..\source\build_TMS.bat /quiet</NMakeReBuildCommandLine>
+    <NMakePreprocessorDefinitions>__GNUC__;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
+    <ExecutablePath />
+    <IncludePath>..;../include;../libfs;$(TFRoot)\gccForTMS\crosstool\include;$(TFRoot)\Cygwin_mini\lib\gcc\i686-pc-cygwin\3.4.4\include;$(TFRoot)\gccForTMS\crosstool\lib\gcc\mipsel-linux-uclibc\3.4.6\include</IncludePath>
+    <ReferencePath />
+    <LibraryPath>
+    </LibraryPath>
+    <SourcePath />
+    <ExcludePath>$(ExcludePath)</ExcludePath>
+    <NMakeOutput>Erfolg.exe</NMakeOutput>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
