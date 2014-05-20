@@ -22,16 +22,22 @@
  *   FUNCTION: Alter inodes in an mounted filesystem
  */
 
-#include <config.h>
+#define _FILE_OFFSET_BITS 64
+#define __USE_FILE_OFFSET64
 
 #include <sys/types.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
+
 #include <time.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <string.h>
+
+#include <linux/types.h>
+#include <linux/fs.h>
 
 #include "jfs_endian.h"
 #include "jfs_logmgr.h"
@@ -46,6 +52,10 @@
 #define MY_VERSION  "0.1"
 #define MY_DATE     "2014-05-16"
 
+/* setting some bit of some byte can be so easy ;) */
+#define is_set(x,v)	(((x)&(v)) == (v))
+#define set(x,v)	((x) |=  (v))
+
 /* Global Data */
 unsigned type_jfs;
 FILE *fp;			/* Used by libfs routines       */
@@ -53,24 +63,35 @@ int bsize;			/* aggregate block size         */
 short l2bsize;			/* log2 of aggregate block size */
 int64_t AIT_2nd_offset;		/* Used by find_iag routines    */
 
-/* if num_errors > 0 in the end, we will exit with error */
-int num_errors = 0;
+/* default values for our options */
+int opt_fixinode = 0;
+int opt_quiet = 0;
+
+/* return value is an array of some bits */
+#define RV_OKAY                  0x00	/* alle dateien ok */
+#define RV_FILE_NOT_FOUND        0x01	/* mind. eine Datei wurde nicht gefunden */
+#define RV_FILE_WAS_FIXED        0x02	/* mind. eine Datei hat fehlerhaften Eintrag */
+#define RV_FILE_NEEDS_FIX        0x04	/* es gab fehlerhafte Einträge, die wurden aber korrigiert */
+#define RV_FILE_CHECKING_FAILED  0x08	/* es gibt probleme beim herusfinden der block anzahl... */
+#define RV_FILE_FIXING_FAILED    0x10	/* mind. eine Datei hat fehlerhaften Eintrag */
+#define RV_DROP_CACHE_FAILED     0x20	/* cache auf pladde schreiben fehlgeschlagen */
+int return_value = RV_OKAY;
 
 /**
  * internal functions
  */
 void usage(void);
 void drop_caches(void);
-void fix_inode(unsigned inum);
+void fix_inode(unsigned inum, unsigned good_blks);
+void check_file(char *filename);
 
 /**
  * show some info how we where called
  */
 void usage()
 {
-	printf("\nUsage:  jfs_icheck [options] <device> file1 file2 .. fileN\n"
-	       " -c        only check the gives files (default: on)\n"
-	       " -f        fix the inode information (default: off)\n"
+	printf("\nUsage: jfs_icheck [options] <device> file1 file2 .. fileN\n"
+	       " -f        fix the inode block information (default: off)\n"
 	       " -q        enable quiet mode (default: off)\n"
 	       " -h        show some help about usage\n");
 	exit(0);
@@ -93,14 +114,14 @@ void drop_caches()
 	if (!fp) {
 		perror
 		    ("fopen /proc/sys/vm/drop_caches failed, can't flush disk!");
-		num_errors++;
+		set(return_value, RV_DROP_CACHE_FAILED);
 		return;
 	}
 
 	/* drop all caches */
 	if (fprintf(fp, "3\n") == -1) {
 		perror("echo 3 > /proc/sys/vm/drop_caches failed!");
-		num_errors++;
+		set(return_value, RV_DROP_CACHE_FAILED);
 		return;
 	}
 
@@ -110,21 +131,21 @@ void drop_caches()
 /**
  * fix some data on inode
  */
-void fix_inode(unsigned inum)
+void fix_inode(unsigned inum, unsigned good_blks)
 {
 	int64_t address;
 	struct dinode inode;
 
 	if (find_inode(inum, FILESYSTEM_I, &address)) {
 		fprintf(stderr, "Can't find inode %u!\n", inum);
-		num_errors++;
+		set(return_value, RV_FILE_FIXING_FAILED);
 		return;
 	}
 
 	/* read it */
 	if (xRead(address, sizeof(struct dinode), (char *)&inode)) {
 		fprintf(stderr, "Error reading inode %u\n", inum);
-		num_errors++;
+		set(return_value, RV_FILE_FIXING_FAILED);
 		return;
 	}
 
@@ -132,41 +153,110 @@ void fix_inode(unsigned inum)
 	ujfs_swap_dinode(&inode, GET, type_jfs);
 
 	/* fix nblocks value */
-	inode.di_nblocks = (inode.di_size + 4095) / 4096;
+	inode.di_nblocks = good_blks;
 
 	/* swap if on big endian machine */
 	ujfs_swap_dinode(&inode, PUT, type_jfs);
 
+	/* write it */
 	if (xWrite(address, sizeof(struct dinode), (char *)&inode)) {
-		fprintf(stderr, "Error writing inode %u\n", inum);
-		num_errors++;
+		set(return_value, RV_FILE_FIXING_FAILED);
+		return;
 	}
 
+	set(return_value, RV_FILE_WAS_FIXED);
 	return;
 }
 
+/**
+ * check some file
+ * 1) get valid fileblocks via FIBMAP
+ * 2) check if the value in the inode matches
+ */
+void check_file(char *filename)
+{
+	struct stat st;
+	long long unsigned size, cur_blks, good_blks, total_blks, blk;
+	unsigned ino, blknum;
+	int fd;
+
+	/* open the file */
+	fd = open(filename, O_RDONLY);
+	if (fd == -1) {
+		fprintf(stderr, "File not found: \"%s\"\n", filename);
+		fflush(stderr);
+		set(return_value, RV_FILE_NOT_FOUND);
+		return;
+	}
+	fsync(fd);		/* just again ;) */
+
+	if (fstat(fd, &st) == -1) {
+		perror(filename);
+		set(return_value, RV_FILE_NOT_FOUND);
+		goto out;
+	}
+
+	total_blks = (st.st_size + st.st_blksize - 1) / st.st_blksize;
+	for (good_blks = 0, blk = 0; blk < total_blks; blk++) {
+		blknum = blk;	/* FIBMAP ist nur 32bit ... */
+		if (ioctl(fd, FIBMAP, &blknum) == -1) {
+			perror("ioctl(FIBMAP)");
+			set(return_value, RV_FILE_NOT_FOUND);
+			goto out;
+		}
+
+		if (blknum != 0)
+			good_blks++;
+	}
+
+	ino = (unsigned)st.st_ino;
+	size = (long long unsigned)st.st_size;
+	cur_blks = (long long unsigned)st.st_blocks / 8;
+
+	if (!opt_quiet) {
+		if (cur_blks == good_blks) {
+			/* good */
+			printf("ok: %s[i=%u] size=%llu blocks=%llu\n",
+			       filename, ino, size, cur_blks);
+			fflush(stdout);
+		} else {
+			/* wrong */
+			printf
+			    ("??: %s[i=%u] size=%llu blocks=%llu, should be %llu",
+			     filename, ino, size, cur_blks, good_blks);
+			if (opt_fixinode)
+				printf(" (will be fixed)");
+			printf("\n");
+			fflush(stdout);
+		}
+	}
+
+	/* now the real fixing, if needed */
+	if (cur_blks == good_blks) {
+		set(return_value, RV_FILE_NEEDS_FIX);
+	} else {
+		if (opt_fixinode)
+			fix_inode(ino, good_blks);
+	}
+ out:
+	close(fd);
+	return;
+}
 
 int main(int argc, char *argv[])
 {
 	struct superblock sb;
 	char *device;		/* name of partition */
 	int opt;		/* for getopt() */
-
-	/* default values for our options */
-	int opt_fixinode = 0;
-	int opt_quiet = 0;
-	int i, rv;
+	int i;
 
 	printf("jfs_icheck version %s, %s, written by Tino Reichardt\n",
 	       MY_VERSION, MY_DATE);
-	while ((opt = getopt(argc, argv, "h?cfq")) != -1) {
+	while ((opt = getopt(argc, argv, "h?fq")) != -1) {
 		switch (opt) {
 		case 'h':
 		case '?':
 			usage();
-		case 'c':
-			opt_fixinode = 0;
-			break;
 		case 'f':
 			opt_fixinode = 1;
 			break;
@@ -195,7 +285,7 @@ int main(int argc, char *argv[])
 	device = argv[optind];
 	fp = fopen(device, "r+");
 	if (fp == NULL) {
-		perror("Cannot open device.\n");
+		perror("Cannot open device.");
 		exit(1);
 	}
 
@@ -204,10 +294,10 @@ int main(int argc, char *argv[])
 
 	/* Get block size information from the superblock       */
 	if (ujfs_get_superblk(fp, &sb, 1)) {
-		perror("error reading primary superblock");
+		fprintf(stderr, "error reading primary superblock\n");
 		if (ujfs_get_superblk(fp, &sb, 0)) {
-			perror
-			    ("jfs_debugfs: error reading secondary superblock");
+			fprintf(stderr,
+				"jfs_debugfs: error reading secondary superblock\n");
 			goto errorout;
 		} else {
 			printf("jfs_debugfs: using secondary superblock\n");
@@ -221,44 +311,7 @@ int main(int argc, char *argv[])
 
 	/* for each given file ... */
 	for (i = optind + 1; i < argc; i++) {
-		struct stat st;
-		char *file = argv[i];	/* name of current file */
-		long long unsigned blocks, size, blocks_good;
-		unsigned ino;
-
-		rv = stat(file, &st);
-		if (rv == -1) {
-			fprintf(stderr, "Can't find the file \"%s\"\n", file);
-			fflush(stderr);
-			num_errors++;
-			continue;	/* try next file ... */
-		}
-
-		ino = (unsigned)st.st_ino;
-		size = (long long unsigned)st.st_size;
-		blocks = (long long unsigned)st.st_blocks / 8;
-		blocks_good = (size + 4095) / 4096;
-
-		if (!opt_quiet) {
-			if (blocks == blocks_good) {
-				/* good */
-				printf("ok: %s[i=%u] size=%llu blocks=%llu\n",
-				       file, ino, size, blocks);
-				fflush(stdout);
-			} else {
-				/* wrong */
-				printf
-				    ("??: %s[i=%u] size=%llu blocks=%llu, but should be %llu",
-				     file, ino, size, blocks, blocks_good);
-				if (opt_fixinode)
-					printf(" (will be fixed)");
-				printf("\n");
-				fflush(stdout);
-			}
-		}
-
-		if (opt_fixinode)
-			fix_inode(ino);
+		check_file(argv[i]);
 	}
 
  errorout:
@@ -271,10 +324,5 @@ int main(int argc, char *argv[])
 
 	fflush(stdout);
 	fflush(stderr);
-	if (num_errors == 0)
-		exit(EXIT_SUCCESS);
-
-	printf("num_errors=%d\n", num_errors);
-	fflush(stdout);
-	exit(EXIT_FAILURE);
+	exit(return_value);
 }
