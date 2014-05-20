@@ -1979,7 +1979,7 @@ int validate_record_fileset_inode(uint32_t inonum, uint32_t inoidx,
 
 			if (agg_recptr->parm_options_mc_fixwrongnblocks)
 			{
-				fix_inode(inonum, agg_recptr->this_inode.all_blks);
+//				fix_inode(inonum, agg_recptr->this_inode.all_blks);
 				inoptr->di_nblocks = agg_recptr->this_inode.all_blks;
 
 				fsck_send_msg(mc_FIXEDNBLOCKSVALUE,
