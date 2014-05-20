@@ -70,8 +70,8 @@ int opt_quiet = 0;
 /* return value is an array of some bits */
 #define RV_OKAY                  0x00	/* alle dateien ok */
 #define RV_FILE_NOT_FOUND        0x01	/* mind. eine Datei wurde nicht gefunden */
-#define RV_FILE_WAS_FIXED        0x02	/* mind. eine Datei hat fehlerhaften Eintrag */
-#define RV_FILE_NEEDS_FIX        0x04	/* es gab fehlerhafte Einträge, die wurden aber korrigiert */
+#define RV_FILE_NEEDS_FIX        0x02	/* mind. eine Datei hat fehlerhaften Eintrag */
+#define RV_FILE_WAS_FIXED        0x04	/* es gab fehlerhafte Einträge, die wurden aber korrigiert */
 #define RV_FILE_CHECKING_FAILED  0x08	/* es gibt probleme beim herusfinden der block anzahl... */
 #define RV_FILE_FIXING_FAILED    0x10	/* mind. eine Datei hat fehlerhaften Eintrag */
 #define RV_DROP_CACHE_FAILED     0x20	/* cache auf pladde schreiben fehlgeschlagen */
@@ -82,7 +82,7 @@ int return_value = RV_OKAY;
  */
 void usage(void);
 void drop_caches(void);
-void fix_inode(unsigned inum, unsigned good_blks);
+void fix_inode(unsigned inum, unsigned used_blks);
 void check_file(char *filename);
 
 /**
@@ -131,7 +131,7 @@ void drop_caches()
 /**
  * fix some data on inode
  */
-void fix_inode(unsigned inum, unsigned good_blks)
+void fix_inode(unsigned inum, unsigned used_blks)
 {
 	int64_t address;
 	struct dinode inode;
@@ -153,7 +153,7 @@ void fix_inode(unsigned inum, unsigned good_blks)
 	ujfs_swap_dinode(&inode, GET, type_jfs);
 
 	/* fix nblocks value */
-	inode.di_nblocks = good_blks;
+	inode.di_nblocks = used_blks;
 
 	/* swap if on big endian machine */
 	ujfs_swap_dinode(&inode, PUT, type_jfs);
@@ -176,7 +176,7 @@ void fix_inode(unsigned inum, unsigned good_blks)
 void check_file(char *filename)
 {
 	struct stat st;
-	long long unsigned size, cur_blks, good_blks, total_blks, blk;
+	long long unsigned size, cur_blks, used_blks, total_blks, blk;
 	unsigned ino, blknum;
 	int fd;
 
@@ -196,8 +196,11 @@ void check_file(char *filename)
 		goto out;
 	}
 
-	total_blks = (st.st_size + st.st_blksize - 1) / st.st_blksize;
-	for (good_blks = 0, blk = 0; blk < total_blks; blk++) {
+	/* check more blocks, cause JFS can split files across AG's */
+	#define SOME_MORE_BLOCKS 1024 * 4
+
+	total_blks = (st.st_size + st.st_blksize - 1) / st.st_blksize + SOME_MORE_BLOCKS;
+	for (used_blks = 0, blk = 0; blk < total_blks; blk++) {
 		blknum = blk;	/* FIBMAP ist nur 32bit ... */
 		if (ioctl(fd, FIBMAP, &blknum) == -1) {
 			perror("ioctl(FIBMAP)");
@@ -206,7 +209,7 @@ void check_file(char *filename)
 		}
 
 		if (blknum != 0)
-			good_blks++;
+			used_blks++;
 	}
 
 	ino = (unsigned)st.st_ino;
@@ -214,7 +217,7 @@ void check_file(char *filename)
 	cur_blks = (long long unsigned)st.st_blocks / 8;
 
 	if (!opt_quiet) {
-		if (cur_blks == good_blks) {
+		if (cur_blks == used_blks) {
 			/* good */
 			printf("ok: %s[i=%u] size=%llu blocks=%llu\n",
 			       filename, ino, size, cur_blks);
@@ -223,7 +226,7 @@ void check_file(char *filename)
 			/* wrong */
 			printf
 			    ("??: %s[i=%u] size=%llu blocks=%llu, should be %llu",
-			     filename, ino, size, cur_blks, good_blks);
+			     filename, ino, size, cur_blks, used_blks);
 			if (opt_fixinode)
 				printf(" (will be fixed)");
 			printf("\n");
@@ -232,11 +235,10 @@ void check_file(char *filename)
 	}
 
 	/* now the real fixing, if needed */
-	if (cur_blks == good_blks) {
+	if (cur_blks != used_blks) {
 		set(return_value, RV_FILE_NEEDS_FIX);
-	} else {
 		if (opt_fixinode)
-			fix_inode(ino, good_blks);
+			fix_inode(ino, used_blks);
 	}
  out:
 	close(fd);
