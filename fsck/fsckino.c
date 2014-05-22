@@ -22,8 +22,18 @@
 #include "jfs_byteorder.h"
 #include "jfs_unicode.h"
 #include "unicode_to_utf8.h"
+#include "../icheck/jfs_icheck.h"
 
- /* + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + +
+/* + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + +
+ *
+ * For message processing
+ *
+ *      defined in xchkdsk.c
+ */
+extern char *Vol_Label;
+extern int mc_NrDefectFiles, mc_NrFixedFiles;
+
+/* + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + +
   *
   * superblock buffer pointer
   *
@@ -1970,6 +1980,7 @@ int validate_record_fileset_inode(uint32_t inonum, uint32_t inoidx,
 			     agg_recptr->this_inode.all_blks);
 #endif
 
+            mc_NrDefectFiles++;
 			fsck_send_msg(mc_WRONGNBLOCKSVALUE,
 				      ino_msg_info_ptr->msg_inonum,
 				      inoptr->di_nblocks,
@@ -1979,20 +1990,34 @@ int validate_record_fileset_inode(uint32_t inonum, uint32_t inoidx,
 
 			if (agg_recptr->parm_options_mc_fixwrongnblocks)
 			{
-//				fix_inode(inonum, agg_recptr->this_inode.all_blks);
-				inoptr->di_nblocks = agg_recptr->this_inode.all_blks;
+//				char CommandLine[512];
+                int icheck_return;
+//				snprintf(CommandLine, sizeof(CommandLine), "/mnt/hd/ProgramFiles/jfs_icheck -f %s \"%s\"", Vol_Label, "/mnt/hd/DataFiles/Brief an Evita (Cut-1).rec");
+				
+//				icheck_return = system(CommandLine);
+                icheck_return = jfs_icheck2(Vol_Label, inonum, agg_recptr->this_inode.all_blks, 1);
+                
+                if ((icheck_return > 0) && (icheck_return & 0x04))
+                {
+					inoptr->di_nblocks = agg_recptr->this_inode.all_blks;
 
-				fsck_send_msg(mc_FIXEDNBLOCKSVALUE,
-				      ino_msg_info_ptr->msg_inonum,
-				      agg_recptr->this_inode.all_blks);
+					fsck_send_msg(mc_FIXEDNBLOCKSVALUE,
+					      ino_msg_info_ptr->msg_inonum,
+					      agg_recptr->this_inode.all_blks);
+					mc_NrFixedFiles++;
+                }
+                else
+					fsck_send_msg(mc_ERRORFIXINGNBLOCKS,
+					      ino_msg_info_ptr->msg_inonum,
+					      icheck_return);
 			}
 			else
 			{
 				inorecptr->selected_to_rls = 1;
 				inorecptr->ignore_alloc_blks = 1;
+				agg_recptr->corrections_needed = 1;
+				bad_size = -1;
 			}
-			agg_recptr->corrections_needed = 1;
-			bad_size = -1;
 		} else {
 			/*
 			 * the data size (in bytes) must not exceed the total

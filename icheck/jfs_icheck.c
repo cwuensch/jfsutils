@@ -1,4 +1,3 @@
-
 /*
  *   Copyright (c) International Business Machines Corp., 2000-2002
  *   Copyright (c) Tino Reichardt, 2014
@@ -49,8 +48,15 @@
 #include "lib.h"
 #include "jfs_icheck.h"
 
-#define MY_VERSION  "0.1"
-#define MY_DATE     "2014-05-16"
+#define MY_VERSION  "0.1b"
+#define MY_DATE     "2014-05-22"
+
+#ifdef PACKAGE_STRING
+  #define ick_MAINFUNC() icheck_main
+#else
+  #define ick_MAINFUNC() main
+#endif
+
 
 /* setting some bit of some byte can be so easy ;) */
 #define is_set(x,v)	(((x)&(v)) == (v))
@@ -80,9 +86,11 @@ int return_value = RV_OKAY;
 /**
  * internal functions
  */
+int  open_device(char *device);
+void close_device();
 void usage(void);
 void drop_caches(void);
-void fix_inode(unsigned inum, unsigned used_blks);
+void fix_inode(unsigned inum, int64_t used_blks);
 void check_file(char *filename);
 
 /**
@@ -95,6 +103,50 @@ void usage()
 	       " -q        enable quiet mode (default: off)\n"
 	       " -h        show some help about usage\n");
 	exit(0);
+}
+
+int open_device(char *device)
+{
+    struct superblock sb;
+
+	/* open the device */
+	fp = fopen(device, "r+");
+	if (fp == NULL) {
+		perror("Cannot open device.");
+		return(1);
+	}
+
+	/* @ first, drop caches, so we read/write fresh/valid data */
+	drop_caches();
+
+	/* Get block size information from the superblock       */
+	if (ujfs_get_superblk(fp, &sb, 1)) {
+		fprintf(stderr, "error reading primary superblock\n");
+		if (ujfs_get_superblk(fp, &sb, 0)) {
+			fprintf(stderr,
+				"jfs_debugfs: error reading secondary superblock\n");
+			close_device();
+            return(1);
+		} else {
+			printf("jfs_debugfs: using secondary superblock\n");
+		}
+	}
+
+	type_jfs = sb.s_flag;
+	bsize = sb.s_bsize;
+	l2bsize = sb.s_l2bsize;
+	AIT_2nd_offset = addressPXD(&(sb.s_ait2)) * bsize;
+    return(0);
+}
+
+void close_device()
+{
+  	ujfs_flush_dev(fp);
+	fclose(fp);
+
+	/* @ drop caches also in the end... the system should read our new (correct) data */
+	if (opt_fixinode)
+		drop_caches();
 }
 
 /**
@@ -131,7 +183,7 @@ void drop_caches()
 /**
  * fix some data on inode
  */
-void fix_inode(unsigned inum, unsigned used_blks)
+void fix_inode(unsigned inum, int64_t used_blks)
 {
 	int64_t address;
 	struct dinode inode;
@@ -245,12 +297,84 @@ void check_file(char *filename)
 	return;
 }
 
-int main(int argc, char *argv[])
+int jfs_icheck2(char *device, unsigned InodeNr, int64_t UsedBlocks, int DoFix)
 {
-	struct superblock sb;
-	char *device;		/* name of partition */
-	int opt;		/* for getopt() */
+	int64_t address;
+	struct dinode inode;
+	long long unsigned cur_blks;
+
+    opt_fixinode = DoFix;
+
+    if (open_device(device) == 0)
+    {
+	    if (find_inode(InodeNr, FILESYSTEM_I, &address)) {
+		    fprintf(stderr, "Can't find inode %u!\n", InodeNr);
+		    set(return_value, RV_FILE_FIXING_FAILED);
+		    return;
+	    }
+
+	    /* read it */
+	    if (xRead(address, sizeof(struct dinode), (char *)&inode)) {
+		    fprintf(stderr, "Error reading inode %u\n", InodeNr);
+		    set(return_value, RV_FILE_FIXING_FAILED);
+		    return;
+	    }
+
+	    /* swap if on big endian machine */
+	    ujfs_swap_dinode(&inode, GET, type_jfs);
+
+        cur_blks = inode.di_nblocks;
+        if (UsedBlocks == 0)
+            UsedBlocks = ((inode.di_size + bsize-1) / bsize);
+
+	    if (!opt_quiet) {
+		    if (cur_blks == UsedBlocks) {
+			    /* good */
+			    printf("ok: %s[i=%u] size=%llu blocks=%llu\n",
+			           "Inode", InodeNr, inode.di_size, cur_blks);
+			    fflush(stdout);
+		    } else {
+			    /* wrong */
+			    printf
+			        ("??: %s[i=%u] size=%llu blocks=%llu, should be %llu",
+			         "Inode", InodeNr, inode.di_size, cur_blks, UsedBlocks);
+			    if (opt_fixinode)
+				    printf(" (will be fixed)");
+			    printf("\n");
+			    fflush(stdout);
+		    }
+	    }
+
+	    /* now the real fixing, if needed */
+	    if (cur_blks != UsedBlocks) {
+		    set(return_value, RV_FILE_NEEDS_FIX);
+		    if (opt_fixinode)
+			    fix_inode(InodeNr, UsedBlocks);
+        }
+        close_device();
+    }
+    return(return_value);
+}
+
+int jfs_icheck(char *device, char *filenames[], int nrfiles, int DoFix)
+{
 	int i;
+    opt_fixinode = DoFix;
+
+    if (open_device(device) == 0)
+    {
+	    /* for each given file ... */
+	    for (i = 0; i < nrfiles; i++) {
+		    check_file(filenames[i]);
+	    }
+        close_device();
+    }
+    return(return_value);
+}
+
+int ick_MAINFUNC()(int argc, char *argv[])
+{
+	int opt;		/* for getopt() */
 
 	printf("jfs_icheck version %s, %s, written by Tino Reichardt\n",
 	       MY_VERSION, MY_DATE);
@@ -280,51 +404,12 @@ int main(int argc, char *argv[])
 	 * argv[5] = file1
 	 * argv[6] = file2
 	 */
-	if (argc < optind + 1)
+	if (argc < optind + 2)
 		usage();
 
-	/* open the device */
-	device = argv[optind];
-	fp = fopen(device, "r+");
-	if (fp == NULL) {
-		perror("Cannot open device.");
-		exit(1);
-	}
-
-	/* @ first, drop caches, so we read/write fresh/valid data */
-	drop_caches();
-
-	/* Get block size information from the superblock       */
-	if (ujfs_get_superblk(fp, &sb, 1)) {
-		fprintf(stderr, "error reading primary superblock\n");
-		if (ujfs_get_superblk(fp, &sb, 0)) {
-			fprintf(stderr,
-				"jfs_debugfs: error reading secondary superblock\n");
-			goto errorout;
-		} else {
-			printf("jfs_debugfs: using secondary superblock\n");
-		}
-	}
-
-	type_jfs = sb.s_flag;
-	bsize = sb.s_bsize;
-	l2bsize = sb.s_l2bsize;
-	AIT_2nd_offset = addressPXD(&(sb.s_ait2)) * bsize;
-
-	/* for each given file ... */
-	for (i = optind + 1; i < argc; i++) {
-		check_file(argv[i]);
-	}
-
- errorout:
-	ujfs_flush_dev(fp);
-	fclose(fp);
-
-	/* @ drop caches also in the end... the system should read our new (correct) data */
-	if (opt_fixinode)
-		drop_caches();
+    jfs_icheck(argv[optind], &argv[optind+1], argc - optind - 1, opt_fixinode);
 
 	fflush(stdout);
 	fflush(stderr);
-	exit(return_value);
+    exit(return_value);
 }

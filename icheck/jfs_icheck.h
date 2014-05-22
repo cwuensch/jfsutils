@@ -35,3 +35,7 @@ extern int bsize;
 extern FILE *fp;
 extern short l2bsize;
 extern int64_t AIT_2nd_offset; /* Used by find_iag routines    */
+
+/* Global Functions */
+int jfs_icheck(char *device, char *filenames[], int nrfiles, int DoFix);
+int jfs_icheck2(char *device, unsigned InodeNr, int64_t UsedBlocks, int DoFix);

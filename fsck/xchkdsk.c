@@ -79,6 +79,8 @@ char *program_name;
 struct tm *fsck_DateTime = NULL;
 char time_stamp[20];
 
+int mc_NrDefectFiles = 0, mc_NrFixedFiles = 0;
+
 /* + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + +
  *
  * For directory entry processing
@@ -200,12 +202,12 @@ int exit_value = FSCK_OK;
  *                         version information
  *                         print version information and exit
  *
- *                         [ -t ]
+ *                         [ -r ]
  *                         if nblocks value differs from real block number
- *                         overwrite the value in inode instead of realeasing
+ *                         repair the value in inode instead of releasing
  *
- *                         [ -z ]
- *                         perform only the first 4 steps
+ *                         [ -q ]
+ *                         quick: perform only the first 4 steps
  *
  * RETURNS:
  *      success:                   FSCK_OK (0)
@@ -217,11 +219,22 @@ int exit_value = FSCK_OK;
  */
 int main(int argc, char **argv)
 {
-
 	int rc = FSCK_OK;
 	time_t Current_Time;
 
-	/*
+	if (argc && **argv)
+		program_name = *argv;
+	else
+		program_name = "jfs_fsck";
+
+    /*
+     * multi-use binary: call icheck if program name
+     * is "jfs_icheck" or first param "icheck"
+     */
+	if ((strncmp(program_name, "jfs_icheck", 10) == 0) || (argc && **argv && (argc >= 2) && strncmp(argv[1], "icheck", 6) == 0))
+		return icheck_main(argc-1, &argv[1]);
+
+    /*
 	 * some basic initializations
 	 */
 	sb_ptr = &aggr_superblock;
@@ -232,11 +245,6 @@ int main(int argc, char **argv)
 	printf("sb_ptr = %p   agg_recptr = %p   bmap_recptr = %p\n", sb_ptr,
 	       agg_recptr, bmap_recptr);
 #endif
-
-	if (argc && **argv)
-		program_name = *argv;
-	else
-		program_name = "jfs_fsck";
 
 	printf("%s version %s, %s\n", program_name, VERSION, JFSUTILS_DATE);
 
@@ -348,15 +356,18 @@ int main(int argc, char **argv)
 		agg_recptr->processing_readwrite = 0;
 	}
 	rc = phase1_processing();
+	if (mc_NrFixedFiles > 0)
+		rc = phase1_processing();
 	if (agg_recptr->fsck_is_done)
 		goto phases_complete;
-	rc = phase2_processing();
+    rc = phase2_processing();
 	if (agg_recptr->fsck_is_done)
 		goto phases_complete;
 	rc = phase3_processing();
 	if (agg_recptr->fsck_is_done)
 		goto phases_complete;
 	rc = phase4_processing();
+	fflush(stdout);
 	if (agg_recptr->fsck_is_done || agg_recptr->parm_options_mc_firststepsonly)
 		goto phases_complete;
 	rc = phase5_processing();
@@ -385,7 +396,8 @@ int main(int argc, char **argv)
 		/* not fleeing an error and not making a speedy exit */
 
 		/* finish up and display some information */
-		rc = final_processing();
+        if (!agg_recptr->parm_options_mc_firststepsonly)
+          rc = final_processing();
 
 		/* flush the I/O buffers to complete any pending writes */
 		if (rc == FSCK_OK) {
@@ -1681,7 +1693,7 @@ void parse_parms(int argc, char **argv)
 	int c;
 	char *device_name = NULL;
 	FILE *file_p = NULL;
-	char *short_opts = "adfj:noprvVytz";
+	char *short_opts = "adfj:noprvVyrq";
 	struct option long_opts[] = {
 		{ "omit_journal_replay", no_argument, NULL, 'o'},
 		{ "replay_journal_only", no_argument, NULL, 'J'},
@@ -1690,7 +1702,7 @@ void parse_parms(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, short_opts, long_opts, NULL))
 		!= EOF) {
 		switch (c) {
-		case 'r':
+//		case 'r':
 		/*************************
 		 * interactive autocheck *
 		 *************************/
@@ -1795,20 +1807,22 @@ void parse_parms(int argc, char **argv)
 			 */
 			break;
 
-		case 't':
+		case 'r':
 		/******************
 		* if nblocks value differs from real block number
-		* overwrite the value in inode instead of realeasing
+		* repair the value in inode instead of releasing
  		 ******************/
 			agg_recptr->parm_options_mc_fixwrongnblocks = 1;
+			agg_recptr->parm_options[UFS_CHKDSK_LEVEL0] = -1;  // read-only!
 			break;
 
-		case 'z':
+		case 'q':
 		/******************
-		* perform only the first 4 steps
+		* quick: perform only the first 4 steps
 		 ******************/
 			agg_recptr->parm_options_mc_firststepsonly = 1;
-			break;
+			agg_recptr->parm_options[UFS_CHKDSK_LEVEL0] = -1;  // read-only!
+            break;
 
     default:
 			fsck_usage();
@@ -2014,6 +2028,7 @@ int phase0_processing()
 int phase1_processing()
 {
 	int p1_rc = FSCK_OK;
+	mc_NrDefectFiles = 0; mc_NrFixedFiles = 0;
 
 	fsck_send_msg(fsck_PHASE1);
 
@@ -2075,6 +2090,9 @@ int phase1_processing()
 	agg_recptr->ea_buf_ptr = NULL;
 	agg_recptr->ea_buf_length = 0;
 	agg_recptr->vlarge_current_use = NOT_CURRENTLY_USED;
+
+	if (agg_recptr->parm_options_mc_fixwrongnblocks && mc_NrDefectFiles)
+      fsck_send_msg(mc_SUMMARYFIXEDFILES, mc_NrFixedFiles, mc_NrDefectFiles);
 
       p1_exit:
 	if (p1_rc != FSCK_OK) {
@@ -2224,7 +2242,11 @@ int phase4_processing()
 		 */
 		p4_rc = report_problems_setup_repairs();
 	}
-	if (p4_rc != FSCK_OK) {
+
+	if (agg_recptr->parm_options_mc_firststepsonly)
+      fsck_send_msg(mc_FINISHED);
+
+    if (p4_rc != FSCK_OK) {
 		agg_recptr->fsck_is_done = 1;
 		exit_value = FSCK_OP_ERROR;
 	}
@@ -3099,7 +3121,7 @@ void ask_continue()
 
 void fsck_usage()
 {
-	printf("\nUsage:  %s [-afnpvVtz] [-j journal_device] [--omit_journal_replay] "
+	printf("\nUsage:  %s [-afnpvVrq] [-j journal_device] [--omit_journal_replay] "
 	       "[--replay_journal_only] device\n", program_name);
 	printf("\nEmergency help:\n"
 	       " -a                 Automatic repair.\n"
@@ -3109,8 +3131,8 @@ void fsck_usage()
 	       " -p                 Automatic repair.\n"
 	       " -v                 Be verbose.\n"
 	       " -V                 Print version information only.\n"
-	       " -t                 Fix inodes, if nblocks value differs from real block number.\n"
-	       " -z                 Perform only the first 4 steps.\n"
+           " -r                 Repair inode if nblocks has incorrect value (writes!).\n"
+           " -q                 Quick: Perform only the first 4 steps (read-only).\n"
 	       " --omit_journal_replay    Omit transaction log replay.\n"
 	       " --replay_journal_only    Only replay the transaction log.\n");
 	exit(FSCK_USAGE_ERROR);

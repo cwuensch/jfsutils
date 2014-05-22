@@ -50,7 +50,7 @@ am_jfs_fsck_OBJECTS = fsckbmap.$(OBJEXT) fsckconn.$(OBJEXT) \
 	fsckimap.$(OBJEXT) fsckino.$(OBJEXT) fsckmeta.$(OBJEXT) \
 	fsckpfs.$(OBJEXT) dirindex.$(OBJEXT) fsckwsp.$(OBJEXT) \
 	fsckxtre.$(OBJEXT) xchkdsk.$(OBJEXT) fsckruns.$(OBJEXT) \
-	fsck_message.$(OBJEXT)
+	fsck_message.$(OBJEXT) jfs_icheck.$(OBJEXT) lib.$(OBJEXT)
 jfs_fsck_OBJECTS = $(am_jfs_fsck_OBJECTS)
 jfs_fsck_LDADD = $(LDADD)
 jfs_fsck_DEPENDENCIES = ../libfs/libfs.a
@@ -182,14 +182,15 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/libfs
+INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/libfs -I$(top_srcdir)/icheck
 LDADD = ../libfs/libfs.a -luuid
 man_MANS = jfs_fsck.8
 EXTRA_DIST = $(man_MANS)
 jfs_fsck_SOURCES = fsckbmap.c fsckconn.c fsckdire.c fsckdtre.c fsckea.c \
           fsckimap.c fsckino.c fsckmeta.c fsckpfs.c  dirindex.c \
           fsckwsp.c fsckxtre.c xchkdsk.c fsckruns.c fsck_message.c \
-          fsckpfs.h xchkdsk.h xfsck.h xfsckint.h
+          fsckpfs.h xchkdsk.h xfsck.h xfsckint.h \
+          jfs_icheck.c jfs_icheck.h lib.c lib.h
 
 all: all-am
 
@@ -287,6 +288,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsckwsp.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsckxtre.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/xchkdsk.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jfs_icheck.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/lib.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
