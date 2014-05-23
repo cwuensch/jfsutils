@@ -272,6 +272,11 @@ int main(int argc, char **argv)
 		goto main_exit;
 	}
 
+
+	int mc_RepeatCounter = 0;
+start_processing:
+    mc_RepeatCounter++;
+
 	if ((rc = initial_processing(argc, argv)) != FSCK_OK) {
 		/*
 		 * Something very wrong has happened.  We're not
@@ -356,8 +361,8 @@ int main(int argc, char **argv)
 		agg_recptr->processing_readwrite = 0;
 	}
 	rc = phase1_processing();
-	if (mc_NrFixedFiles > 0)
-		rc = phase1_processing();
+	if ((mc_RepeatCounter == 1) && (mc_NrFixedFiles > 0))
+		goto start_processing;
 	if (agg_recptr->fsck_is_done)
 		goto phases_complete;
     rc = phase2_processing();
@@ -367,7 +372,7 @@ int main(int argc, char **argv)
 	if (agg_recptr->fsck_is_done)
 		goto phases_complete;
 	rc = phase4_processing();
-	fflush(stdout);
+//	fflush(stdout);
 	if (agg_recptr->fsck_is_done || agg_recptr->parm_options_mc_firststepsonly)
 		goto phases_complete;
 	rc = phase5_processing();

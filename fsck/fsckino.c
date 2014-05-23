@@ -2002,8 +2002,7 @@ int validate_record_fileset_inode(uint32_t inonum, uint32_t inoidx,
 					inoptr->di_nblocks = agg_recptr->this_inode.all_blks;
 
 					fsck_send_msg(mc_FIXEDNBLOCKSVALUE,
-					      ino_msg_info_ptr->msg_inonum,
-					      agg_recptr->this_inode.all_blks);
+					      ino_msg_info_ptr->msg_inonum);
 					mc_NrFixedFiles++;
                 }
                 else
