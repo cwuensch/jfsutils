@@ -365,7 +365,7 @@ start_processing:
 		goto start_processing;
 	if (agg_recptr->fsck_is_done)
 		goto phases_complete;
-    rc = phase2_processing();
+	rc = phase2_processing();
 	if (agg_recptr->fsck_is_done)
 		goto phases_complete;
 	rc = phase3_processing();

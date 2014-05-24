@@ -1980,7 +1980,7 @@ int validate_record_fileset_inode(uint32_t inonum, uint32_t inoidx,
 			     agg_recptr->this_inode.all_blks);
 #endif
 
-            mc_NrDefectFiles++;
+			mc_NrDefectFiles++;
 			fsck_send_msg(mc_WRONGNBLOCKSVALUE,
 				      ino_msg_info_ptr->msg_inonum,
 				      inoptr->di_nblocks,
@@ -1990,25 +1990,20 @@ int validate_record_fileset_inode(uint32_t inonum, uint32_t inoidx,
 
 			if (agg_recptr->parm_options_mc_fixwrongnblocks)
 			{
-//				char CommandLine[512];
-                int icheck_return;
-//				snprintf(CommandLine, sizeof(CommandLine), "/mnt/hd/ProgramFiles/jfs_icheck -f %s \"%s\"", Vol_Label, "/mnt/hd/DataFiles/Brief an Evita (Cut-1).rec");
-				
-//				icheck_return = system(CommandLine);
-                icheck_return = jfs_icheck2(Vol_Label, inonum, agg_recptr->this_inode.all_blks, 1);
+				int icheck_return = jfs_icheck2(Vol_Label, inonum, agg_recptr->this_inode.all_blks, 1);
                 
-                if ((icheck_return > 0) && (icheck_return & 0x04))
-                {
+				if ((icheck_return > 0) && (icheck_return & 0x04))
+				{
 					inoptr->di_nblocks = agg_recptr->this_inode.all_blks;
 
 					fsck_send_msg(mc_FIXEDNBLOCKSVALUE,
-					      ino_msg_info_ptr->msg_inonum);
+						ino_msg_info_ptr->msg_inonum);
 					mc_NrFixedFiles++;
-                }
-                else
+				}
+				else
 					fsck_send_msg(mc_ERRORFIXINGNBLOCKS,
-					      ino_msg_info_ptr->msg_inonum,
-					      icheck_return);
+						      ino_msg_info_ptr->msg_inonum,
+						      icheck_return);
 			}
 			else
 			{
