@@ -247,9 +247,15 @@ int main(int argc, char **argv)
 #endif
 
 	printf("%s version %s, %s\n", program_name, VERSION, JFSUTILS_DATE);
+	printf("- modified for Topfield PVRs by T. Reichardt & C. Wünsch -\n");
 
 	wsp_dynstg_action = dynstg_unknown;
 	wsp_dynstg_object = dynstg_unknown;
+
+
+	int mc_RepeatCounter = 0;
+start_processing:
+    mc_RepeatCounter++;
 
 	/* init workspace aggregate record
 	 * (the parms will be recorded in it)
@@ -271,11 +277,6 @@ int main(int argc, char **argv)
 		exit_value = FSCK_OP_ERROR;
 		goto main_exit;
 	}
-
-
-	int mc_RepeatCounter = 0;
-start_processing:
-    mc_RepeatCounter++;
 
 	if ((rc = initial_processing(argc, argv)) != FSCK_OK) {
 		/*
@@ -362,7 +363,7 @@ start_processing:
 	}
 	rc = phase1_processing();
 	if ((mc_RepeatCounter == 1) && (mc_NrFixedFiles > 0))
-		goto start_processing;
+		goto phases_complete;
 	if (agg_recptr->fsck_is_done)
 		goto phases_complete;
 	rc = phase2_processing();
@@ -522,6 +523,10 @@ start_processing:
 			close_volume();
 		}
 	}
+
+
+	if ((mc_RepeatCounter == 1) && (mc_NrFixedFiles > 0))
+		goto start_processing;
 
 	if (!agg_recptr->stdout_redirected) {
 		/* end the "running" indicator */

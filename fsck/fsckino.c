@@ -1990,7 +1990,7 @@ int validate_record_fileset_inode(uint32_t inonum, uint32_t inoidx,
 
 			if (agg_recptr->parm_options_mc_fixwrongnblocks)
 			{
-				int icheck_return = jfs_icheck2(Vol_Label, inonum, agg_recptr->this_inode.all_blks, 1);
+				int icheck_return = CheckInodeByNr(Vol_Label, inonum, agg_recptr->this_inode.all_blks, 1);
                 
 				if ((icheck_return > 0) && (icheck_return & 0x04))
 				{

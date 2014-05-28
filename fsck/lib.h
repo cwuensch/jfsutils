@@ -1,3 +1,4 @@
+
 /*
  *   Copyright (c) International Business Machines Corp., 2000-2002
  *   Copyright (c) Tino Reichardt, 2014
@@ -18,24 +19,23 @@
  */
 
 /*
- *   FUNCTION: Alter inodes in an mounted filesystem
+ *   FUNCTION: common data & function prototypes
  */
 
-#include <stdio.h>
+#include <config.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
 
-#include "jfs_types.h"
+#include "jfs_icheck.h"
+
+#include "jfs_endian.h"
+#include "jfs_filsys.h"
 #include "jfs_dinode.h"
-#include "jfs_imap.h"
-#include "jfs_superblock.h"
+#include "inode.h"
+#include "devices.h"
 
-/* Global Data */
-extern unsigned type_jfs;
-extern int bsize;
-extern FILE *fp;
-extern short l2bsize;
-extern int64_t AIT_2nd_offset; /* Used by find_iag routines    */
-
-/* Global Functions */
-int jfs_icheck(char *device, char *filenames[], int NrFiles, int UseInodeNums, int DoFix);
-int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, int DoFix);
-int CheckInodeByNr(char *device, unsigned InodeNr, int64_t RealBlocks, int DoFix);
+int xRead(int64_t address, unsigned count, char *buffer);
+int xWrite(int64_t address, unsigned count, char *buffer);
+int find_inode(unsigned inum, unsigned which_table, int64_t * address);
+int find_iag(unsigned iagnum, unsigned which_table, int64_t * address);
