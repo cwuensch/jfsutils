@@ -19,7 +19,7 @@
  */
 
 /*
- *   FUNCTION: Alter inodes in an mounted filesystem
+ *   FUNCTION: Alter inodes in a mounted filesystem
  */
 
 #define _FILE_OFFSET_BITS 64
@@ -60,13 +60,13 @@
 
 
 /* return value is an array of some bits */
-#define RV_OKAY                  0x00  /* alle dateien ok */
-#define RV_FILE_NOT_FOUND        0x01  /* mind. eine Datei wurde nicht gefunden */
-#define RV_FILE_NEEDS_FIX        0x02  /* mind. eine Datei hat fehlerhaften Eintrag */
-#define RV_FILE_WAS_FIXED        0x04  /* es gab fehlerhafte Einträge, die wurden aber korrigiert */
-#define RV_FILE_CHECKING_FAILED  0x08  /* es gibt Probleme beim Herausfinden der korrekten Blockanzahl... */
-#define RV_FILE_FIXING_FAILED    0x10  /* mind. ein fehlerhaften Eintrag konnte nicht korrigiert werden*/
-#define RV_DROP_CACHE_FAILED     0x20  /* Cache auf Platte schreiben fehlgeschlagen */
+#define RV_OKAY                  0x00    /* alle dateien ok */
+#define RV_FILE_NOT_FOUND        0x01    /* mind. eine Datei wurde nicht gefunden */
+#define RV_FILE_NEEDS_FIX        0x02    /* mind. eine Datei hat fehlerhaften Eintrag */
+#define RV_FILE_WAS_FIXED        0x04    /* es gab fehlerhafte Einträge, die wurden aber korrigiert */
+#define RV_FILE_CHECKING_FAILED  0x08    /* es gibt Probleme beim Herausfinden der korrekten Blockanzahl... */
+#define RV_FILE_FIXING_FAILED    0x10    /* mind. ein fehlerhaften Eintrag konnte nicht korrigiert werden*/
+#define RV_DROP_CACHE_FAILED     0x20    /* Cache auf Platte schreiben fehlgeschlagen */
 int return_value = RV_OKAY;
 
 /* setting some bit of some byte can be so easy ;) */
@@ -76,9 +76,9 @@ int return_value = RV_OKAY;
 
 /* Global Data */
 unsigned type_jfs;
-FILE *fp = NULL;      /* Used by libfs routines       */
-int bsize;      /* aggregate block size         */
-short l2bsize;      /* log2 of aggregate block size */
+FILE *fp = NULL;           /* Used by libfs routines       */
+int bsize;                 /* aggregate block size         */
+short l2bsize;             /* log2 of aggregate block size */
 int64_t AIT_2nd_offset;    /* Used by find_iag routines    */
 struct dinode inode;
 
@@ -106,6 +106,39 @@ void usage()
            " -f        fix the inode block number value (default: off)\n"
            " -q        enable quiet mode (default: off)\n"
            " -h        show some help about usage\n");
+}
+
+
+/**
+ * 1 -> drop pagecache
+ * 2 -> drop dentries and inodes
+ * 3 -> drop pagecache, dentries and inodes
+ */
+int drop_caches()
+{
+  FILE *fp = fopen("/proc/sys/vm/drop_caches", "w");
+
+  /* we are syncing only our wanted disk here... */
+  sync();
+  sync();
+
+  /* open proc file */
+  if (!fp) {
+    perror ("fopen /proc/sys/vm/drop_caches failed, can't flush disk!");
+    set(return_value, RV_DROP_CACHE_FAILED);
+    return 1;
+  }
+
+  /* drop all caches */
+  if (fprintf(fp, "3\n") == -1) {
+    perror("echo 3 > /proc/sys/vm/drop_caches failed!");
+    set(return_value, RV_DROP_CACHE_FAILED);
+    fclose(fp);
+    return 1;
+  }
+
+  fclose(fp);
+  return 0;
 }
 
 void close_device()
@@ -151,38 +184,6 @@ int open_device(char *device)
   return(0);
 }
 
-
-/**
- * 1 -> drop pagecache
- * 2 -> drop dentries and inodes
- * 3 -> drop pagecache, dentries and inodes
- */
-int drop_caches()
-{
-  FILE *fp = fopen("/proc/sys/vm/drop_caches", "w");
-
-  /* we are syncing only our wanted disk here... */
-  sync();
-  sync();
-
-  /* open proc file */
-  if (!fp) {
-    perror ("fopen /proc/sys/vm/drop_caches failed, can't flush disk!");
-    set(return_value, RV_DROP_CACHE_FAILED);
-    return 1;
-  }
-
-  /* drop all caches */
-  if (fprintf(fp, "3\n") == -1) {
-    perror("echo 3 > /proc/sys/vm/drop_caches failed!");
-    set(return_value, RV_DROP_CACHE_FAILED);
-    fclose(fp);
-    return 1;
-  }
-
-  fclose(fp);
-  return 0;
-}
 
 /**
  * fix some data on inode
@@ -299,6 +300,7 @@ int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, int DoFix
     close(fd);
     return(return_value);
   }
+  close(fd);
 
   if (opt_usefibmap && (RealBlocks == 0))
   {
@@ -321,8 +323,6 @@ int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, int DoFix
   }
 
   CheckInodeByNr(device, st.st_ino, RealBlocks, DoFix);
-
-  close(fd);
   return(return_value);
 }
 
