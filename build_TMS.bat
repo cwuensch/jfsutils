@@ -8,4 +8,5 @@ set CFLAGS=-pipe -Os -static
 set LDFLAGS=-static
 rem bash ../configure --host=mipsel-linux-uclibc
 make
+copy /y fsck\jfs_fsck ..\.. > nul
 pause
