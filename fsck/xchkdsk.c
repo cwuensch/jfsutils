@@ -231,7 +231,9 @@ int main(int argc, char **argv)
      * multi-use binary: call icheck if program name
      * is "jfs_icheck" or first param "icheck"
      */
-	if ((strncmp(program_name, "jfs_icheck", 10) == 0) || (argc && **argv && (argc >= 2) && strncmp(argv[1], "icheck", 6) == 0))
+	if (strncmp(program_name, "jfs_icheck", 10) == 0)
+		return icheck_main(argc, argv);
+	else if (argc && **argv && (argc >= 2) && strncmp(argv[1], "icheck", 6) == 0)
 		return icheck_main(argc-1, &argv[1]);
 
     /*
@@ -247,15 +249,11 @@ int main(int argc, char **argv)
 #endif
 
 	printf("%s version %s, %s\n", program_name, VERSION, JFSUTILS_DATE);
-	printf("- modified for Topfield PVRs by T. Reichardt & C. Wünsch -\n");
+	printf("- modified for Topfield PVRs by T. Reichardt & C. Wuensch -\n");
 
 	wsp_dynstg_action = dynstg_unknown;
 	wsp_dynstg_object = dynstg_unknown;
 
-
-	int mc_RepeatCounter = 0;
-start_processing:
-    mc_RepeatCounter++;
 
 	/* init workspace aggregate record
 	 * (the parms will be recorded in it)
@@ -362,9 +360,9 @@ start_processing:
 		agg_recptr->processing_readwrite = 0;
 	}
 	rc = phase1_processing();
-	if ((mc_RepeatCounter == 1) && (mc_NrFixedFiles > 0))
-		goto phases_complete;
-	if (agg_recptr->fsck_is_done)
+    if (mc_NrFixedFiles > 0)
+		rc = phase1_processing();
+	if (agg_recptr->fsck_is_done /*|| (mc_RepeatCounter == 1 && mc_NrFixedFiles > 0)*/)
 		goto phases_complete;
 	rc = phase2_processing();
 	if (agg_recptr->fsck_is_done)
@@ -390,7 +388,8 @@ start_processing:
 		goto phases_complete;
 	rc = phase9_processing();
 
-      phases_complete:
+phases_complete:
+	fsck_send_msg(mc_FINISHED);
 	if (!agg_recptr->superblk_ok) {
 		/* superblock is bad */
 		exit_value = FSCK_ERRORS_UNCORRECTED;
@@ -523,10 +522,6 @@ start_processing:
 			close_volume();
 		}
 	}
-
-
-	if ((mc_RepeatCounter == 1) && (mc_NrFixedFiles > 0))
-		goto start_processing;
 
 	if (!agg_recptr->stdout_redirected) {
 		/* end the "running" indicator */
@@ -2252,9 +2247,6 @@ int phase4_processing()
 		 */
 		p4_rc = report_problems_setup_repairs();
 	}
-
-	if (agg_recptr->parm_options_mc_firststepsonly)
-      fsck_send_msg(mc_FINISHED);
 
     if (p4_rc != FSCK_OK) {
 		agg_recptr->fsck_is_done = 1;

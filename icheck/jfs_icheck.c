@@ -80,13 +80,11 @@ FILE *fp = NULL;           /* Used by libfs routines       */
 int bsize;                 /* aggregate block size         */
 short l2bsize;             /* log2 of aggregate block size */
 int64_t AIT_2nd_offset;    /* Used by find_iag routines    */
-struct dinode inode;
+struct dinode cur_inode;
+int64_t cur_address;
 
 /* global values for our options */
-int opt_useinodenums = 0;
-int opt_providerealsize = 0;
 int opt_usefibmap = 0;
-int opt_fixinode = 0;
 int opt_quiet = 0;
 
 /**
@@ -101,8 +99,8 @@ void usage()
 {
   printf("\nUsage: jfs_icheck [options] <device> file1 file2 .. fileN <nblocks>\n"
            " -i        use inode-numbers instead of file-names (default: off)\n"
-           " -s        provide the real size (number of blocks) to be used. (Only one file possible!)\n"
-           " -c        calculate the real size via FIBMAP (default: off)\n"
+           " -b        provide the real block number to be used (only 1 file possible!)\n"
+           " -c        calculate the real size via FIBMAP (not with -i, default: off)\n"
            " -f        fix the inode block number value (default: off)\n"
            " -q        enable quiet mode (default: off)\n"
            " -h        show some help about usage\n");
@@ -141,13 +139,13 @@ int drop_caches()
   return 0;
 }
 
-void close_device()
+void close_device(int flush_cache)
 {
   ujfs_flush_dev(fp);
   fclose(fp);
 
   /* @ drop caches also in the end... the system should read our new (correct) data */
-  if (opt_fixinode)
+  if (flush_cache)
     drop_caches();
 }
 
@@ -170,7 +168,7 @@ int open_device(char *device)
     fprintf(stderr, "error reading primary superblock\n");
     if (ujfs_get_superblk(fp, &sb, 0)) {
       fprintf(stderr, "jfs_debugfs: error reading secondary superblock\n");
-      close_device();
+      close_device(0);
       return(1);
     } else {
       printf("jfs_debugfs: using secondary superblock\n");
@@ -190,16 +188,14 @@ int open_device(char *device)
  */
 int fix_inode(int64_t used_blks)
 {
-  int64_t address;
-
   /* fix nblocks value */
-  inode.di_nblocks = used_blks;
+  cur_inode.di_nblocks = used_blks;
 
   /* swap if on big endian machine */
-  ujfs_swap_dinode(&inode, PUT, type_jfs);
+  ujfs_swap_dinode(&cur_inode, PUT, type_jfs);
 
   /* write it */
-  if (xWrite(address, sizeof(struct dinode), (char *)&inode)) {
+  if (xWrite(cur_address, sizeof(struct dinode), (char *)&cur_inode)) {
     set(return_value, RV_FILE_FIXING_FAILED);
     return 1;
   }
@@ -211,52 +207,49 @@ int fix_inode(int64_t used_blks)
 
 int CheckInodeByNr(char *device, unsigned InodeNr, int64_t RealBlocks, int DoFix)
 {
-  opt_fixinode = DoFix;
-
   int DeviceOpened = (!fp) ? 1 : 0;
   if (fp || (open_device(device) == 0))
   {
     int opt_tolerance = 0;
-    int64_t address;
     int64_t cur_blks;
 
-    if (!InodeNr || find_inode(InodeNr, FILESYSTEM_I, &address)) {
+    if (!InodeNr || find_inode(InodeNr, FILESYSTEM_I, &cur_address)) {
       fprintf(stderr, "Can't find inode %u!\n", InodeNr);
       set(return_value, RV_FILE_NOT_FOUND);
       return(return_value);
     }
 
     /* read it */
-    if (xRead(address, sizeof(struct dinode), (char *)&inode)) {
+    if (xRead(cur_address, sizeof(struct dinode), (char *)&cur_inode)) {
       fprintf(stderr, "Error reading inode %u\n", InodeNr);
       set(return_value, RV_FILE_NOT_FOUND);
       return(return_value);
     }
 
     /* swap if on big endian machine */
-    ujfs_swap_dinode(&inode, GET, type_jfs);
+    ujfs_swap_dinode(&cur_inode, GET, type_jfs);
 
-    cur_blks = inode.di_nblocks;
+    cur_blks = cur_inode.di_nblocks;
     if (RealBlocks == 0)
     {
       opt_tolerance = 1;
-      RealBlocks = cur_blks;
+      RealBlocks = ((cur_inode.di_size + bsize-1) / bsize);
       if ((cur_blks - RealBlocks > 10) || (RealBlocks - cur_blks > 10))
         RealBlocks = (cur_blks && 0x0FFFFFll);
       if ((cur_blks - RealBlocks > 10) || (RealBlocks - cur_blks > 10))
-        RealBlocks = ((inode.di_size + bsize-1) / bsize);
+        RealBlocks = ((cur_inode.di_size + bsize-1) / bsize);
     }
 
     if (!opt_quiet) {
       if ((cur_blks == RealBlocks) || (opt_tolerance && (cur_blks - RealBlocks <= 10) && (RealBlocks - cur_blks <= 10))) {
         /* good */
         printf("ok: %s[i=%u] size=%llu blocks=%llu\n",
-               "Inode", InodeNr, inode.di_size, cur_blks);
+               "Inode", InodeNr, cur_inode.di_size, cur_blks);
         fflush(stdout);
       } else {
         /* wrong */
         printf("??: %s[i=%u] size=%llu blocks=%llu, should be %llu",
-               "Inode", InodeNr, inode.di_size, cur_blks, RealBlocks);
+               "Inode", InodeNr, cur_inode.di_size, cur_blks, RealBlocks);
         if (DoFix)
           printf(" (will be fixed)");
         printf("\n");
@@ -270,15 +263,13 @@ int CheckInodeByNr(char *device, unsigned InodeNr, int64_t RealBlocks, int DoFix
       if (DoFix)
         fix_inode(RealBlocks);
     }
-    if (DeviceOpened) close_device();
+    if (DeviceOpened) close_device(DoFix);
   }
   return(return_value);
 }
 
 int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, int DoFix)
 {
-  opt_fixinode = DoFix;
-
   struct stat st;
   long long unsigned size, cur_blks, used_blks, total_blks, blk;
   unsigned ino, blknum;
@@ -300,7 +291,6 @@ int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, int DoFix
     close(fd);
     return(return_value);
   }
-  close(fd);
 
   if (opt_usefibmap && (RealBlocks == 0))
   {
@@ -321,6 +311,7 @@ int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, int DoFix
         RealBlocks++;
     }
   }
+  close(fd);
 
   CheckInodeByNr(device, st.st_ino, RealBlocks, DoFix);
   return(return_value);
@@ -329,8 +320,6 @@ int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, int DoFix
 
 int jfs_icheck(char *device, char *filenames[], int NrFiles, int UseInodeNums, int DoFix)
 {
-  opt_fixinode = DoFix;
-
   if (open_device(device) == 0)
   {
     /* for each given file ... */
@@ -341,7 +330,7 @@ int jfs_icheck(char *device, char *filenames[], int NrFiles, int UseInodeNums, i
       else
         CheckInodeByName(device, filenames[i], 0, DoFix);
     }
-    close_device();
+    close_device(DoFix);
   }
   return(return_value);
 }
@@ -349,15 +338,18 @@ int jfs_icheck(char *device, char *filenames[], int NrFiles, int UseInodeNums, i
 int ick_MAINFUNC()(int argc, char *argv[])
 {
   int opt;    /* for getopt() */
+  int opt_useinodenums = 0;
+  int opt_providerealsize = 0;
+  int opt_fixinode = 0;
 
   printf("jfs_icheck version %s, %s, written by Tino Reichardt\n",
          MY_VERSION, MY_DATE);
-  while ((opt = getopt(argc, argv, "iscfqh?")) != -1) {
+  while ((opt = getopt(argc, argv, "ibcfqh?")) != -1) {
     switch (opt) {
       case 'i':
         opt_useinodenums = 1;
         break;
-      case 's':
+      case 'b':
         opt_providerealsize = 1;
         break;
       case 'c':
@@ -372,10 +364,10 @@ int ick_MAINFUNC()(int argc, char *argv[])
       case 'h':
       case '?':
         usage();
-        exit(0);
+        return(0);
       default:
         usage();
-        exit(1);
+        return(1);
     }
   }
 
@@ -392,7 +384,7 @@ int ick_MAINFUNC()(int argc, char *argv[])
   if ((argc <= optind + 1) || (opt_providerealsize && argc <= optind + 2))
   {
     usage();
-    exit(1);
+    return(1);
   }
 
   if(!opt_providerealsize)
@@ -407,5 +399,5 @@ int ick_MAINFUNC()(int argc, char *argv[])
 
   fflush(stdout);
   fflush(stderr);
-  exit(return_value);
+  return(return_value);
 }
