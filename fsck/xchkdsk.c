@@ -231,7 +231,7 @@ int main(int argc, char **argv)
      * multi-use binary: call icheck if program name
      * is "jfs_icheck" or first param "icheck"
      */
-	if (strncmp(program_name, "jfs_icheck", 10) == 0)
+	if (strstr(program_name, "jfs_icheck") != 0)
 		return icheck_main(argc, argv);
 	else if (argc && **argv && (argc >= 2) && strncmp(argv[1], "icheck", 6) == 0)
 		return icheck_main(argc-1, &argv[1]);
@@ -360,9 +360,9 @@ int main(int argc, char **argv)
 		agg_recptr->processing_readwrite = 0;
 	}
 	rc = phase1_processing();
-    if (mc_NrFixedFiles > 0)
+	if (mc_NrFixedFiles > 0)
 		rc = phase1_processing();
-	if (agg_recptr->fsck_is_done /*|| (mc_RepeatCounter == 1 && mc_NrFixedFiles > 0)*/)
+    if (agg_recptr->fsck_is_done /*|| (mc_RepeatCounter == 1 && mc_NrFixedFiles > 0)*/)
 		goto phases_complete;
 	rc = phase2_processing();
 	if (agg_recptr->fsck_is_done)

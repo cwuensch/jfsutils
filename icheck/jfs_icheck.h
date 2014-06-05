@@ -21,12 +21,26 @@
  *   FUNCTION: Alter inodes in an mounted filesystem
  */
 
+#ifndef H_JFS_ICHECK
+#define H_JFS_ICHECK
+
+
 #include <stdio.h>
 
 #include "jfs_types.h"
 #include "jfs_dinode.h"
 #include "jfs_imap.h"
 #include "jfs_superblock.h"
+
+
+typedef struct
+{
+  unsigned long         InodeNr;
+  int64_t               di_size;
+  int64_t               nblocks_real;
+  int64_t               nblocks_wrong;
+} tInodeData;
+
 
 /* Global Data */
 extern unsigned type_jfs;
@@ -38,4 +52,7 @@ extern int64_t AIT_2nd_offset; /* Used by find_iag routines    */
 /* Global Functions */
 int jfs_icheck(char *device, char *filenames[], int NrFiles, int UseInodeNums, int DoFix);
 int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, int DoFix);
-int CheckInodeByNr(char *device, unsigned InodeNr, int64_t RealBlocks, int DoFix);
+int CheckInodeByNr(char *device, unsigned InodeNr, int64_t RealBlocks, int64_t SizeOfFile, int DoFix);
+int CheckInodeList(char *device, char *ListFileName, int DoFix);
+
+#endif

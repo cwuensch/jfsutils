@@ -1982,27 +1982,28 @@ int validate_record_fileset_inode(uint32_t inonum, uint32_t inoidx,
 
 			mc_NrDefectFiles++;
 			fsck_send_msg(mc_WRONGNBLOCKSVALUE,
-				      ino_msg_info_ptr->msg_inonum,
+				      inonum,
 				      inoptr->di_nblocks,
-				      agg_recptr->this_inode.all_blks);
+				      agg_recptr->this_inode.all_blks,
+                      inoptr->di_size);
 
 			display_paths(inoidx, inorecptr, ino_msg_info_ptr);
 
 			if (agg_recptr->parm_options_mc_fixwrongnblocks)
 			{
-				int icheck_return = CheckInodeByNr(Vol_Label, inonum, agg_recptr->this_inode.all_blks, 1);
+				int icheck_return  = CheckInodeByNr(Vol_Label, inonum, agg_recptr->this_inode.all_blks, 0, 1);
+				int icheck2_return = CheckInodeByNr(Vol_Label, inonum, agg_recptr->this_inode.all_blks, 0, 1);
                 
-				if ((icheck_return > 0) && (icheck_return & 0x04))
+				if (((icheck_return == 0) || (icheck_return & 0x04)) && (icheck2_return == 0))
 				{
 					inoptr->di_nblocks = agg_recptr->this_inode.all_blks;
-
-					fsck_send_msg(mc_FIXEDNBLOCKSVALUE,
-						      ino_msg_info_ptr->msg_inonum);
 					mc_NrFixedFiles++;
+					fsck_send_msg(mc_FIXEDNBLOCKSVALUE,
+						      inonum);
 				}
 				else
 					fsck_send_msg(mc_ERRORFIXINGNBLOCKS,
-						      ino_msg_info_ptr->msg_inonum,
+						      inonum,
 						      icheck_return);
 			}
 			else

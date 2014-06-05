@@ -24,6 +24,9 @@
 
 #define _FILE_OFFSET_BITS 64
 #define __USE_FILE_OFFSET64
+#ifdef _MSC_VER
+  #define __const const
+#endif
 
 #include <sys/types.h>
 #include <sys/ioctl.h>
@@ -63,10 +66,11 @@
 #define RV_OKAY                  0x00    /* alle dateien ok */
 #define RV_FILE_NOT_FOUND        0x01    /* mind. eine Datei wurde nicht gefunden */
 #define RV_FILE_NEEDS_FIX        0x02    /* mind. eine Datei hat fehlerhaften Eintrag */
-#define RV_FILE_WAS_FIXED        0x04    /* es gab fehlerhafte Einträge, die wurden aber korrigiert */
+#define RV_FILE_WAS_FIXED        0x04    /* es gab fehlerhafte Einträge, die wurden aber alle(!) korrigiert */
 #define RV_FILE_CHECKING_FAILED  0x08    /* es gibt Probleme beim Herausfinden der korrekten Blockanzahl... */
-#define RV_FILE_FIXING_FAILED    0x10    /* mind. ein fehlerhaften Eintrag konnte nicht korrigiert werden*/
-#define RV_DROP_CACHE_FAILED     0x20    /* Cache auf Platte schreiben fehlgeschlagen */
+#define RV_FILE_FIXING_FAILED    0x10    /* mind. ein fehlerhaften Eintrag konnte nicht korrigiert werden */
+#define RV_FILE_HAS_WRONG_SIZE   0x20    /* eine Datei wurde nicht korrigiert, da übergebene Dateigröße falsch */
+#define RV_DROP_CACHE_FAILED     0x30    /* Cache auf Platte schreiben fehlgeschlagen */
 int return_value = RV_OKAY;
 
 /* setting some bit of some byte can be so easy ;) */
@@ -100,6 +104,7 @@ void usage()
   printf("\nUsage: jfs_icheck [options] <device> file1 file2 .. fileN <nblocks>\n"
            " -i        use inode-numbers instead of file-names (default: off)\n"
            " -b        provide the real block number to be used (only 1 file possible!)\n"
+           " -l        provide a file with list of inodes to be checked (default: off)\n"
            " -c        calculate the real size via FIBMAP (not with -i, default: off)\n"
            " -f        fix the inode block number value (default: off)\n"
            " -q        enable quiet mode (default: off)\n"
@@ -196,17 +201,20 @@ int fix_inode(int64_t used_blks)
 
   /* write it */
   if (xWrite(cur_address, sizeof(struct dinode), (char *)&cur_inode)) {
+    return_value = return_value & (!RV_FILE_WAS_FIXED);
     set(return_value, RV_FILE_FIXING_FAILED);
     return 1;
   }
 
-  set(return_value, RV_FILE_WAS_FIXED);
+  if(!is_set(return_value, RV_FILE_FIXING_FAILED))
+    set(return_value, RV_FILE_WAS_FIXED);
   return 0;
 }
 
 
-int CheckInodeByNr(char *device, unsigned InodeNr, int64_t RealBlocks, int DoFix)
+int CheckInodeByNr(char *device, unsigned InodeNr, int64_t RealBlocks, int64_t SizeOfFile, int DoFix)
 {
+  int ret = 0;
   int DeviceOpened = (!fp) ? 1 : 0;
   if (fp || (open_device(device) == 0))
   {
@@ -216,18 +224,27 @@ int CheckInodeByNr(char *device, unsigned InodeNr, int64_t RealBlocks, int DoFix
     if (!InodeNr || find_inode(InodeNr, FILESYSTEM_I, &cur_address)) {
       fprintf(stderr, "Can't find inode %u!\n", InodeNr);
       set(return_value, RV_FILE_NOT_FOUND);
-      return(return_value);
+      return(RV_FILE_NOT_FOUND);
     }
 
     /* read it */
     if (xRead(cur_address, sizeof(struct dinode), (char *)&cur_inode)) {
       fprintf(stderr, "Error reading inode %u\n", InodeNr);
       set(return_value, RV_FILE_NOT_FOUND);
-      return(return_value);
+      return(RV_FILE_NOT_FOUND);
     }
 
     /* swap if on big endian machine */
     ujfs_swap_dinode(&cur_inode, GET, type_jfs);
+
+    if ((SizeOfFile != 0) && (cur_inode.di_size != SizeOfFile))
+    {
+      printf("??: %s[i=%u] size=%llu, should be %llu\n",
+             "Inode", InodeNr, cur_inode.di_size, SizeOfFile);
+//      fflush(stdout);
+//      set(return_value, RV_FILE_HAS_WRONG_SIZE);
+      return(RV_FILE_HAS_WRONG_SIZE);
+    }
 
     cur_blks = cur_inode.di_nblocks;
     if (RealBlocks == 0)
@@ -245,7 +262,7 @@ int CheckInodeByNr(char *device, unsigned InodeNr, int64_t RealBlocks, int DoFix
         /* good */
         printf("ok: %s[i=%u] size=%llu blocks=%llu\n",
                "Inode", InodeNr, cur_inode.di_size, cur_blks);
-        fflush(stdout);
+//        fflush(stdout);
       } else {
         /* wrong */
         printf("??: %s[i=%u] size=%llu blocks=%llu, should be %llu",
@@ -253,19 +270,21 @@ int CheckInodeByNr(char *device, unsigned InodeNr, int64_t RealBlocks, int DoFix
         if (DoFix)
           printf(" (will be fixed)");
         printf("\n");
-        fflush(stdout);
+//        fflush(stdout);
       }
     }
 
     /* now the real fixing, if needed */
     if (cur_blks != RealBlocks) {
+      set(ret, RV_FILE_NEEDS_FIX);
       set(return_value, RV_FILE_NEEDS_FIX);
       if (DoFix)
-        fix_inode(RealBlocks);
+        if (fix_inode(RealBlocks) == 0)
+          set(ret, RV_FILE_WAS_FIXED);
     }
     if (DeviceOpened) close_device(DoFix);
   }
-  return(return_value);
+  return(ret);
 }
 
 int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, int DoFix)
@@ -279,9 +298,9 @@ int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, int DoFix
   fd = open(filename, O_RDONLY);
   if (fd == -1) {
     fprintf(stderr, "File not found: \"%s\"\n", filename);
-    fflush(stderr);
+//    fflush(stderr);
     set(return_value, RV_FILE_NOT_FOUND);
-    return(return_value);
+    return(RV_FILE_NOT_FOUND);
   }
   fsync(fd);    /* just again ;) */
 
@@ -289,7 +308,7 @@ int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, int DoFix
     perror(filename);
     set(return_value, RV_FILE_NOT_FOUND);
     close(fd);
-    return(return_value);
+    return(RV_FILE_NOT_FOUND);
   }
 
   if (opt_usefibmap && (RealBlocks == 0))
@@ -304,7 +323,7 @@ int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, int DoFix
         perror("ioctl(FIBMAP)");
         set(return_value, RV_FILE_NOT_FOUND);
         close(fd);
-        return(return_value);
+        return(RV_FILE_NOT_FOUND);
       }
 
       if (blknum != 0)
@@ -313,8 +332,59 @@ int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, int DoFix
   }
   close(fd);
 
-  CheckInodeByNr(device, st.st_ino, RealBlocks, DoFix);
-  return(return_value);
+  CheckInodeByNr(device, st.st_ino, RealBlocks, 0, DoFix);
+}
+
+int CheckInodeList(char *device, char *ListFileName, int DoFix)
+{
+  FILE                 *fInodeList = NULL, *fNewList = NULL;
+  tInodeData            curInode;
+  char                  CommandLine[512];
+  int                   NrFiles = 0, NrFound = 0, NrOk = 0, NrFixed = 0;
+  int                   ret = 0;
+
+  fInodeList = fopen(ListFileName, "rb");
+  if(fInodeList)
+  {
+    if (open_device(device) == 0)
+    {
+      remove("/tmp/FixInodes.new");
+      fNewList = fopen("/tmp/FixInodes.new", "wb");
+      while(fread(&curInode, sizeof(tInodeData), 1, fInodeList))
+      {
+        NrFiles++;
+        ret = CheckInodeByNr(device, curInode.InodeNr, curInode.nblocks_real, curInode.di_size, DoFix);
+
+        if ((ret <= 0) || is_set(ret, RV_FILE_NOT_FOUND) || is_set(ret, RV_FILE_HAS_WRONG_SIZE))
+        {
+          if(ret == 0) {NrFound++; NrOk++;}
+          // lösche aus der Liste
+        }
+        else
+        {
+          NrFound++;
+          if (is_set(ret, RV_FILE_WAS_FIXED)) NrFixed++;
+          // behalte in der Liste
+          if(fNewList)
+            fwrite(&curInode, sizeof(curInode), 1, fNewList);
+        }
+      }
+      if(fNewList) fclose(fNewList);
+      close_device(DoFix);
+    }
+    fclose(fInodeList);
+
+    if(NrFound > NrOk)
+    {
+      snprintf(CommandLine, sizeof(CommandLine), "cp /tmp/FixInodes.new \"%s\"", ListFileName);
+      system(CommandLine);
+    }
+    else
+      remove(ListFileName);
+  }
+
+  printf("%d files given, %d found. %d of them ok, %d were fixed.",
+         NrFiles, NrFound, NrOk, NrFixed);
 }
 
 
@@ -326,7 +396,7 @@ int jfs_icheck(char *device, char *filenames[], int NrFiles, int UseInodeNums, i
     int i;
     for (i = 0; i < NrFiles; i++) {
       if(UseInodeNums)
-        CheckInodeByNr(device, strtoull(filenames[i], NULL, 10), 0, DoFix);
+        CheckInodeByNr(device, strtoull(filenames[i], NULL, 10), 0, 0, DoFix);
       else
         CheckInodeByName(device, filenames[i], 0, DoFix);
     }
@@ -341,16 +411,20 @@ int ick_MAINFUNC()(int argc, char *argv[])
   int opt_useinodenums = 0;
   int opt_providerealsize = 0;
   int opt_fixinode = 0;
+  int opt_checkfilelist = 0;
 
   printf("jfs_icheck version %s, %s, written by Tino Reichardt\n",
          MY_VERSION, MY_DATE);
-  while ((opt = getopt(argc, argv, "ibcfqh?")) != -1) {
+  while ((opt = getopt(argc, argv, "iblcfqh?")) != -1) {
     switch (opt) {
       case 'i':
         opt_useinodenums = 1;
         break;
       case 'b':
         opt_providerealsize = 1;
+        break;
+      case 'l':
+        opt_checkfilelist = 1;
         break;
       case 'c':
         opt_usefibmap = 1;
@@ -387,17 +461,49 @@ int ick_MAINFUNC()(int argc, char *argv[])
     return(1);
   }
 
-  if(!opt_providerealsize)
+
+// *** kaputtmachen ***
+// VOR dem icheck war die Datei auf jeden Fall geöffnet, und wurde bearbeitet
+// (da sie geschnitten wurde). Das wird hier simuliert.
+/*FILE *f;
+f = fopen(argv[optind+1], "r+");
+if (f)
+{
+  uint8_t b = 0xFF;
+  fseek(f, 5, SEEK_SET);
+  fwrite(&b, 1, 1, f);
+  fclose(f);
+}*/
+
+
+  if(opt_checkfilelist)
+    CheckInodeList(argv[optind], argv[optind + 1], opt_fixinode);
+  else if(!opt_providerealsize)
     jfs_icheck(argv[optind], &argv[optind+1], argc - optind - 1, opt_useinodenums, opt_fixinode);
   else
   {
     if(opt_useinodenums)
-      CheckInodeByNr(argv[optind], strtoul(argv[optind+1], NULL, 10), strtoull(argv[optind+2], NULL, 10), opt_fixinode);
+      CheckInodeByNr(argv[optind], strtoul(argv[optind+1], NULL, 10), strtoull(argv[optind+2], NULL, 10), 0, opt_fixinode);
     else
       CheckInodeByName(argv[optind], argv[optind+1], strtoull(argv[optind+2], NULL, 10), opt_fixinode);
   }
 
-  fflush(stdout);
-  fflush(stderr);
+//  fflush(stdout);
+//  fflush(stderr);
+
+
+// *** kaputtmachen - Teil 2 ***
+// NACH dem icheck wird die Datei wieder geöffnet, da das geschnittene Video abgespielt wird.
+// Das wird hier simuliert.
+/*f = fopen(argv[optind+1], "r+");
+if (f)
+{
+  uint8_t b = 0xAB;
+  fseek(f, 5, SEEK_SET);
+  fwrite(&b, 1, 1, f);
+  fclose(f);
+}*/
+
+
   return(return_value);
 }
