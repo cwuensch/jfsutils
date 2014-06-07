@@ -1985,15 +1985,15 @@ int validate_record_fileset_inode(uint32_t inonum, uint32_t inoidx,
 				      inonum,
 				      inoptr->di_nblocks,
 				      agg_recptr->this_inode.all_blks,
-                      inoptr->di_size);
+				      inoptr->di_size);
 
-			display_paths(inoidx, inorecptr, ino_msg_info_ptr);
+			//display_paths(inoidx, inorecptr, ino_msg_info_ptr);
 
-			if (agg_recptr->parm_options_mc_fixwrongnblocks)
+/*			if (agg_recptr->parm_options_mc_fixwrongnblocks)
 			{
 				int icheck_return  = CheckInodeByNr(Vol_Label, inonum, agg_recptr->this_inode.all_blks, 0, 1);
 				int icheck2_return = CheckInodeByNr(Vol_Label, inonum, agg_recptr->this_inode.all_blks, 0, 1);
-                
+fprintf(stdout, "icheck2 returned: %d\n", icheck2_return);
 				if (((icheck_return == 0) || (icheck_return & 0x04)) && (icheck2_return == 0))
 				{
 					inoptr->di_nblocks = agg_recptr->this_inode.all_blks;
@@ -2005,7 +2005,30 @@ int validate_record_fileset_inode(uint32_t inonum, uint32_t inoidx,
 					fsck_send_msg(mc_ERRORFIXINGNBLOCKS,
 						      inonum,
 						      icheck_return);
+*/
+			int ret = 0;
+			FILE *tf = fopen("/tmp/FixInodes.tmp", "ab");
+			if(tf)
+			{
+				tInodeData curInodeDat;
+				curInodeDat.InodeNr = inonum;
+				curInodeDat.nblocks_real = agg_recptr->this_inode.all_blks;
+				curInodeDat.nblocks_wrong = inoptr->di_nblocks;
+				curInodeDat.di_size = inoptr->di_size;
+				curInodeDat.LastFixTime = 0;
+				ret = fwrite(&curInodeDat, sizeof(tInodeData), 1, tf);
+				fclose(tf);
 			}
+			if(ret)
+			{
+				fsck_send_msg(mc_FIXEDNBLOCKSVALUE, inonum);
+				mc_NrFixedFiles++;
+			}
+			else
+				fsck_send_msg(mc_ERRORFIXINGNBLOCKS, inonum);
+
+			if (agg_recptr->parm_options_mc_fixwrongnblocks)
+				inoptr->di_nblocks = agg_recptr->this_inode.all_blks;
 			else
 			{
 				inorecptr->selected_to_rls = 1;

@@ -36,6 +36,7 @@
 #include "message.h"
 #include "super.h"
 #include "utilsubs.h"
+#include "../icheck/jfs_icheck.h"
 
 int64_t ondev_jlog_byte_offset;
 
@@ -360,9 +361,7 @@ int main(int argc, char **argv)
 		agg_recptr->processing_readwrite = 0;
 	}
 	rc = phase1_processing();
-	if (mc_NrFixedFiles > 0)
-		rc = phase1_processing();
-    if (agg_recptr->fsck_is_done /*|| (mc_RepeatCounter == 1 && mc_NrFixedFiles > 0)*/)
+	if (agg_recptr->fsck_is_done)
 		goto phases_complete;
 	rc = phase2_processing();
 	if (agg_recptr->fsck_is_done)
@@ -372,7 +371,7 @@ int main(int argc, char **argv)
 		goto phases_complete;
 	rc = phase4_processing();
 //	fflush(stdout);
-	if (agg_recptr->fsck_is_done || agg_recptr->parm_options_mc_firststepsonly)
+    if (agg_recptr->fsck_is_done || agg_recptr->parm_options_mc_firststepsonly || mc_NrDefectFiles > 0)
 		goto phases_complete;
 	rc = phase5_processing();
 	if (agg_recptr->fsck_is_done)
@@ -401,7 +400,7 @@ phases_complete:
 		/* not fleeing an error and not making a speedy exit */
 
 		/* finish up and display some information */
-        if (!agg_recptr->parm_options_mc_firststepsonly)
+        if (!agg_recptr->parm_options_mc_firststepsonly && mc_NrDefectFiles == 0)
           rc = final_processing();
 
 		/* flush the I/O buffers to complete any pending writes */
@@ -523,7 +522,21 @@ phases_complete:
 		}
 	}
 
-	if (!agg_recptr->stdout_redirected) {
+	/*
+	 * Run jfs_icheck to correct damaged inodes (MC)
+	 */
+	if(mc_NrDefectFiles > 0)
+	{
+		fprintf(stdout, "**Phase 10 - MC fixing wrong inode values\n");
+		int icheck_return  = CheckInodeList(Vol_Label, "/tmp/FixInodes.tmp", agg_recptr->parm_options_mc_fixwrongnblocks, 0);
+		if (icheck_return == 0 || (icheck_return >= 0 && (icheck_return & 0x04)))
+			fprintf(stdout, "(ok, %d)\n", icheck_return);
+		else
+			fprintf(stdout, "(MIST, %d)\n", icheck_return);
+        fprintf(stdout, "**Finished.");
+	}
+
+    if (!agg_recptr->stdout_redirected) {
 		/* end the "running" indicator */
 		fsck_hbeat_stop();
 	}
@@ -2033,9 +2046,16 @@ int phase0_processing()
 int phase1_processing()
 {
 	int p1_rc = FSCK_OK;
-	mc_NrDefectFiles = 0; mc_NrFixedFiles = 0;
 
 	fsck_send_msg(fsck_PHASE1);
+
+	mc_NrDefectFiles = 0; mc_NrFixedFiles = 0;
+	FILE *tf = fopen("/tmp/FixInodes.tmp", "wb");
+	if(tf)
+		fclose(tf);
+    else
+		fprintf(stdout, "[MC0] Error! Cannot write to list file '%s'.", "/tmp/FixInodes.tmp");
+
 
 	if ((p1_rc = establish_io_buffers()) != FSCK_OK)
 		goto p1_exit;

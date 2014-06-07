@@ -1,6 +1,7 @@
 /*
  *   Copyright (c) International Business Machines Corp., 2000-2002
  *   Copyright (c) Tino Reichardt, 2014
+ *   Copyright (c) Christian Wünsch, 2014
  *
  *   This program is free software;  you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -18,7 +19,7 @@
  */
 
 /*
- *   FUNCTION: Alter inodes in an mounted filesystem
+ *   FUNCTION: Alter inodes in a mounted filesystem
  */
 
 #ifndef H_JFS_ICHECK
@@ -39,6 +40,7 @@ typedef struct
   int64_t               di_size;
   int64_t               nblocks_real;
   int64_t               nblocks_wrong;
+  unsigned long         LastFixTime;
 } tInodeData;
 
 
@@ -47,12 +49,12 @@ extern unsigned type_jfs;
 extern int bsize;
 extern FILE *fp;
 extern short l2bsize;
-extern int64_t AIT_2nd_offset; /* Used by find_iag routines    */
+extern int64_t AIT_2nd_offset;   /* Used by find_iag routines */
 
 /* Global Functions */
 int jfs_icheck(char *device, char *filenames[], int NrFiles, int UseInodeNums, int DoFix);
 int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, int DoFix);
 int CheckInodeByNr(char *device, unsigned InodeNr, int64_t RealBlocks, int64_t SizeOfFile, int DoFix);
-int CheckInodeList(char *device, char *ListFileName, int DoFix);
+int CheckInodeList(char *device, char *ListFileName, int DoFix, int DeleteOldEntries);
 
 #endif

@@ -38,6 +38,7 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <string.h>
+#include <locale.h>
 
 #include <linux/types.h>
 #include <linux/fs.h>
@@ -88,12 +89,59 @@ struct dinode cur_inode;
 int64_t cur_address;
 
 /* global values for our options */
+int opt_tolerance = 1;
 int opt_usefibmap = 0;
 int opt_quiet = 0;
 
 /**
  * internal functions
  */
+unsigned int GetUpTime(void)
+{
+  unsigned int          uptime = 0;
+  FILE                 *fp;
+  double                upsecs;
+
+  fp = fopen("/proc/uptime", "r");
+  if(fp != NULL)
+  {
+    char                buf[BUFSIZ];
+    int                 res;
+    char               *b;
+
+    b = fgets(buf, BUFSIZ, fp);
+    if(b == buf)
+    {
+      /* The following sscanf must use the C locale.  */
+      setlocale(LC_NUMERIC, "C");
+      res = sscanf(buf, "%lf", &upsecs);
+      setlocale(LC_NUMERIC, "");
+      if(res == 1) uptime = (unsigned int)(upsecs);
+    }
+    fclose(fp);
+  }
+  return uptime;
+}
+unsigned int GetBootTime(void)
+{
+  char                  Buffer[BUFSIZ];
+  unsigned int          btime;
+
+  FILE *fp = fopen("/proc/stat", "r");
+  if (fp)
+  {
+    while(fgets(Buffer, BUFSIZ, fp))
+    {
+      if(sscanf(Buffer, "btime %ld", &btime) == 1)
+      {
+        fclose(fp);
+        return btime;
+      }
+    }
+    fclose(fp);
+    return 0;
+  }
+}
 
 
 /**
@@ -105,6 +153,8 @@ void usage()
            " -i        use inode-numbers instead of file-names (default: off)\n"
            " -b        provide the real block number to be used (only 1 file possible!)\n"
            " -l        provide a file with list of inodes to be checked (default: off)\n"
+           " -L        same as -l, but delete non-existent or already fixed entries\n"
+//           " -t        use tolerance mode when calculating size (default when not -b or -c)\n"
            " -c        calculate the real size via FIBMAP (not with -i, default: off)\n"
            " -f        fix the inode block number value (default: off)\n"
            " -q        enable quiet mode (default: off)\n"
@@ -214,12 +264,15 @@ int fix_inode(int64_t used_blks)
 
 int CheckInodeByNr(char *device, unsigned InodeNr, int64_t RealBlocks, int64_t SizeOfFile, int DoFix)
 {
+
+fprintf(stdout, "Parameters: device=%s, InodeNr=%u, RealBlocks=%lld, SizeOfFile=%lld, DoFix=%d\n", device, InodeNr, RealBlocks, SizeOfFile, DoFix);
+
   int ret = 0;
   int DeviceOpened = (!fp) ? 1 : 0;
   if (fp || (open_device(device) == 0))
   {
-    int opt_tolerance = 0;
-    int64_t cur_blks;
+    int tolerance_mode = 0;
+    int64_t cur_blks, ExpectedBlocks;
 
     if (!InodeNr || find_inode(InodeNr, FILESYSTEM_I, &cur_address)) {
       fprintf(stderr, "Can't find inode %u!\n", InodeNr);
@@ -239,30 +292,49 @@ int CheckInodeByNr(char *device, unsigned InodeNr, int64_t RealBlocks, int64_t S
 
     if ((SizeOfFile != 0) && (cur_inode.di_size != SizeOfFile))
     {
-      printf("??: %s[i=%u] size=%llu, should be %llu\n",
+      printf("??: %s[i=%u] size=%llu, expected %llu (skipping inode)\n",
              "Inode", InodeNr, cur_inode.di_size, SizeOfFile);
 //      fflush(stdout);
-//      set(return_value, RV_FILE_HAS_WRONG_SIZE);
+      set(return_value, RV_FILE_HAS_WRONG_SIZE);
       return(RV_FILE_HAS_WRONG_SIZE);
     }
 
     cur_blks = cur_inode.di_nblocks;
     if (RealBlocks == 0)
     {
-      opt_tolerance = 1;
-      RealBlocks = ((cur_inode.di_size + bsize-1) / bsize);
-      if ((cur_blks - RealBlocks > 10) || (RealBlocks - cur_blks > 10))
-        RealBlocks = (cur_blks && 0x0FFFFFll);
-      if ((cur_blks - RealBlocks > 10) || (RealBlocks - cur_blks > 10))
-        RealBlocks = ((cur_inode.di_size + bsize-1) / bsize);
+      // RealBlocks berechnen
+      if (opt_tolerance) tolerance_mode = 1;
+      ExpectedBlocks = ((cur_inode.di_size + bsize-1) / bsize);
+
+      // bei zu starker Abweichung, probiere +/- 1048576
+      if (cur_blks + 10 < ExpectedBlocks)
+      {
+        RealBlocks = cur_blks + 1048576;
+fprintf(stdout, "Probiere RealBlocks=%lld\n", RealBlocks);
+      }
+      else if ((cur_blks > ExpectedBlocks + 10) && (cur_blks > 1048576))
+      {
+        RealBlocks = cur_blks - 1048576;
+fprintf(stdout, "Probiere RealBlocks=%lld\n", RealBlocks);
+        if (RealBlocks > ExpectedBlocks + 10)
+          RealBlocks = (cur_blks + 1048576) & 0x0FFFFFFFll;
+fprintf(stdout, "Probiere RealBlocks=%lld\n", RealBlocks);
+      }
+
+      // wenn immernoch starke Abweichung, lieber wieder den "Original" berechneten Wert nehmen
+      if ((ExpectedBlocks - RealBlocks > 10) || (RealBlocks - ExpectedBlocks > 10))
+        RealBlocks = ExpectedBlocks;
     }
 
     if (!opt_quiet) {
-      if ((cur_blks == RealBlocks) || (opt_tolerance && (cur_blks - RealBlocks <= 10) && (RealBlocks - cur_blks <= 10))) {
+      if (cur_blks == RealBlocks) {
         /* good */
         printf("ok: %s[i=%u] size=%llu blocks=%llu\n",
                "Inode", InodeNr, cur_inode.di_size, cur_blks);
-//        fflush(stdout);
+      } else if (tolerance_mode && (cur_blks - RealBlocks <= 10) && (RealBlocks - cur_blks <= 10)) {
+        /* okay?, tolerance */
+        printf("ok?: %s[i=%u] size=%llu blocks=%llu, should be %llu (tolerated)\n",
+               "Inode", InodeNr, cur_inode.di_size, cur_blks, RealBlocks);
       } else {
         /* wrong */
         printf("??: %s[i=%u] size=%llu blocks=%llu, should be %llu",
@@ -270,8 +342,8 @@ int CheckInodeByNr(char *device, unsigned InodeNr, int64_t RealBlocks, int64_t S
         if (DoFix)
           printf(" (will be fixed)");
         printf("\n");
-//        fflush(stdout);
       }
+//      fflush(stdout);
     }
 
     /* now the real fixing, if needed */
@@ -335,12 +407,12 @@ int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, int DoFix
   CheckInodeByNr(device, st.st_ino, RealBlocks, 0, DoFix);
 }
 
-int CheckInodeList(char *device, char *ListFileName, int DoFix)
+int CheckInodeList(char *device, char *ListFileName, int DoFix, int DeleteOldEntries)
 {
   FILE                 *fInodeList = NULL, *fNewList = NULL;
   tInodeData            curInode;
   char                  CommandLine[512];
-  int                   NrFiles = 0, NrFound = 0, NrOk = 0, NrFixed = 0;
+  int                   NrFiles = 0, NrFound = 0, NrOk = 0, NrOkOk = 0, NrFixed = 0;
   int                   ret = 0;
 
   fInodeList = fopen(ListFileName, "rb");
@@ -350,41 +422,57 @@ int CheckInodeList(char *device, char *ListFileName, int DoFix)
     {
       remove("/tmp/FixInodes.new");
       fNewList = fopen("/tmp/FixInodes.new", "wb");
+
       while(fread(&curInode, sizeof(tInodeData), 1, fInodeList))
       {
         NrFiles++;
         ret = CheckInodeByNr(device, curInode.InodeNr, curInode.nblocks_real, curInode.di_size, DoFix);
 
-        if ((ret <= 0) || is_set(ret, RV_FILE_NOT_FOUND) || is_set(ret, RV_FILE_HAS_WRONG_SIZE))
+        if ((ret < 0) || is_set(ret, RV_FILE_NOT_FOUND) || is_set(ret, RV_FILE_HAS_WRONG_SIZE))
         {
-          if(ret == 0) {NrFound++; NrOk++;}
-          // lösche aus der Liste
+          // Datei existiert nicht -> lösche aus der Liste
+          if(DeleteOldEntries) continue;
+        }
+        else if (ret == 0)
+        {
+          NrFound++; NrOk++;
+          // Datei ist ok und wurde VOR dem letzten Neustart korrigiert
+fprintf(stdout, "LastFixTime=%lu, time=%lu, BootTime=%lu, UpTime=%lu\n", curInode.LastFixTime, time(NULL), GetBootTime(), GetUpTime());
+
+          if(curInode.LastFixTime + 180 <= GetBootTime())
+          {
+            NrOkOk++;
+            if(DeleteOldEntries) continue;
+          }
         }
         else
         {
           NrFound++;
           if (is_set(ret, RV_FILE_WAS_FIXED)) NrFixed++;
-          // behalte in der Liste
-          if(fNewList)
-            fwrite(&curInode, sizeof(curInode), 1, fNewList);
         }
+
+        // Datei in der Liste aktualisieren
+        curInode.LastFixTime = time(NULL);
+        if(fNewList)
+          fwrite(&curInode, sizeof(curInode), 1, fNewList);
       }
       if(fNewList) fclose(fNewList);
       close_device(DoFix);
     }
     fclose(fInodeList);
 
-    if(NrFound > NrOk)
+    if((NrFound == 0) || (NrFound > NrOkOk))
     {
       snprintf(CommandLine, sizeof(CommandLine), "cp /tmp/FixInodes.new \"%s\"", ListFileName);
       system(CommandLine);
     }
     else
-      remove(ListFileName);
+      if(DeleteOldEntries) remove(ListFileName);
   }
 
-  printf("%d files given, %d found. %d of them ok, %d were fixed.",
-         NrFiles, NrFound, NrOk, NrFixed);
+  printf("%d files given, %d found. %d of them ok (%d ok since last reboot), %d were fixed.\n",
+         NrFiles, NrFound, NrOk, NrOkOk, NrFixed);
+  return return_value;
 }
 
 
@@ -415,7 +503,7 @@ int ick_MAINFUNC()(int argc, char *argv[])
 
   printf("jfs_icheck version %s, %s, written by Tino Reichardt\n",
          MY_VERSION, MY_DATE);
-  while ((opt = getopt(argc, argv, "iblcfqh?")) != -1) {
+  while ((opt = getopt(argc, argv, "iblLtcfqh?")) != -1) {
     switch (opt) {
       case 'i':
         opt_useinodenums = 1;
@@ -426,6 +514,12 @@ int ick_MAINFUNC()(int argc, char *argv[])
       case 'l':
         opt_checkfilelist = 1;
         break;
+      case 'L':
+        opt_checkfilelist = 2;
+        break;
+/*      case 't':
+        opt_tolerance = 1;
+        break;  */
       case 'c':
         opt_usefibmap = 1;
         break;
@@ -460,6 +554,7 @@ int ick_MAINFUNC()(int argc, char *argv[])
     usage();
     return(1);
   }
+  if (opt_providerealsize);
 
 
 // *** kaputtmachen ***
@@ -477,7 +572,7 @@ if (f)
 
 
   if(opt_checkfilelist)
-    CheckInodeList(argv[optind], argv[optind + 1], opt_fixinode);
+    CheckInodeList(argv[optind], argv[optind + 1], opt_fixinode, opt_checkfilelist-1);
   else if(!opt_providerealsize)
     jfs_icheck(argv[optind], &argv[optind+1], argc - optind - 1, opt_useinodenums, opt_fixinode);
   else
@@ -503,7 +598,6 @@ if (f)
   fwrite(&b, 1, 1, f);
   fclose(f);
 }*/
-
 
   return(return_value);
 }
