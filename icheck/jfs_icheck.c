@@ -307,22 +307,22 @@ fprintf(stdout, "Parameters: device=%s, InodeNr=%u, RealBlocks=%lld, SizeOfFile=
       ExpectedBlocks = ((cur_inode.di_size + bsize-1) / bsize);
 
       // bei zu starker Abweichung, probiere +/- 1048576
-      if (cur_blks + 10 < ExpectedBlocks)
+      if (cur_blks < ExpectedBlocks)
       {
         RealBlocks = cur_blks + 1048576;
 fprintf(stdout, "Probiere RealBlocks=%lld\n", RealBlocks);
       }
-      else if ((cur_blks > ExpectedBlocks + 10) && (cur_blks > 1048576))
+      else if ((cur_blks > ExpectedBlocks + 1024) && (cur_blks > 1048576))
       {
         RealBlocks = cur_blks - 1048576;
 fprintf(stdout, "Probiere RealBlocks=%lld\n", RealBlocks);
-        if (RealBlocks > ExpectedBlocks + 10)
+        if (RealBlocks > ExpectedBlocks + 1024)
           RealBlocks = (cur_blks + 1048576) & 0x0FFFFFFFll;
 fprintf(stdout, "Probiere RealBlocks=%lld\n", RealBlocks);
       }
 
       // wenn immernoch starke Abweichung, lieber wieder den "Original" berechneten Wert nehmen
-      if ((ExpectedBlocks - RealBlocks > 10) || (RealBlocks - ExpectedBlocks > 10))
+      if ((RealBlocks < ExpectedBlocks) || (RealBlocks > ExpectedBlocks + 100))
         RealBlocks = ExpectedBlocks;
     }
 
