@@ -37,10 +37,11 @@
 typedef struct
 {
   unsigned long         InodeNr;
+  unsigned long         LastFixTime;
   int64_t               di_size;
   int64_t               nblocks_real;
   int64_t               nblocks_wrong;
-  unsigned long         LastFixTime;
+  char                  FileName[64];
 } tInodeData;
 
 
@@ -52,9 +53,10 @@ extern short l2bsize;
 extern int64_t AIT_2nd_offset;   /* Used by find_iag routines */
 
 /* Global Functions */
-int jfs_icheck(char *device, char *filenames[], int NrFiles, int UseInodeNums, int DoFix);
+int jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t RealBlocks, int UseInodeNums, int DoFix);
 int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, int DoFix);
 int CheckInodeByNr(char *device, unsigned InodeNr, int64_t RealBlocks, int64_t SizeOfFile, int DoFix);
-int CheckInodeList(char *device, char *ListFileName, int DoFix, int DeleteOldEntries);
+int CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, int DoFix, int DeleteOldEntries);
+int CheckInodeListFile(char *device, char *ListFileName, int DoFix, int DeleteOldEntries);
 
 #endif

@@ -67,7 +67,7 @@ int Unicode_String_to_UTF8_String(uint8_t * s, const uint16_t * pwcs, int maxlen
 	op = s;
 	ip = pwcs;
 	while (*ip && maxlen > 0) {
-		if (*ip > 0x7f) {
+		if (*ip > 0x7f  /* ***CW*** */ && 0) {
 			size = Unicode_Character_to_UTF8_Character(op, *ip, maxlen);
 			if (size == -1) {
 				/* Ignore character and move on */
