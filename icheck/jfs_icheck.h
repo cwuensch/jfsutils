@@ -25,7 +25,6 @@
 #ifndef H_JFS_ICHECK
 #define H_JFS_ICHECK
 
-
 #include <stdio.h>
 
 #include "jfs_types.h"
@@ -33,6 +32,28 @@
 #include "jfs_imap.h"
 #include "jfs_superblock.h"
 
+#ifndef TRUE
+#define TRUE            true
+#endif
+#ifndef FALSE
+#define FALSE           false
+#endif
+
+/**
+/* Return Values
+ * (the return value can ONLY be increased during the programme!)
+ */
+typedef enum tResultCode
+{
+  rc_UNKNOWN         = -1,
+  rc_NOFILEFOUND     =  0,    // es wurde KEINE der übergebenen Dateien gefunden
+  rc_ALLFILESOKAY    =  1,    // alle gefundenen Dateien sind ok
+  rc_ALLFILESFIXED   =  2,    // alle gefundenen Dateien sind ok oder wurden (erfolgreich) korrigiert
+  rc_SOMENOTFIXED    =  3,    // es gibt Dateien, die nicht ok sind und nicht korrigiert wurden
+  rc_ERRDEVICEOPEN   =  4,    // Fehler der Prerequisites
+  rc_ERRLISTFILEOPEN =  5,    // Fehler beim Öffnen des ListFiles
+  rc_ERRLISTFILEWRT  =  6     // Fehler beim Schreiben des ListFiles
+} tResultCode;
 
 typedef struct
 {
@@ -53,10 +74,10 @@ extern short l2bsize;
 extern int64_t AIT_2nd_offset;   /* Used by find_iag routines */
 
 /* Global Functions */
-int jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t RealBlocks, int UseInodeNums, int DoFix);
-int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, int DoFix);
-int CheckInodeByNr(char *device, unsigned InodeNr, int64_t RealBlocks, int64_t SizeOfFile, int DoFix);
-int CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, int DoFix, int DeleteOldEntries);
-int CheckInodeListFile(char *device, char *ListFileName, int DoFix, int DeleteOldEntries);
+int jfs_icheck(char *device, char *filenames[], unsigned int NrFiles, int64_t RealBlocks, bool UseInodeNums, bool DoFix);
+int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, bool DoFix);
+int CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64_t SizeOfFile, bool DoFix);
+int CheckInodeList(char *device, tInodeData InodeList[], unsigned int *NrInodes, bool DoFix, bool DeleteOldEntries);
+int CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool DeleteOldEntries);
 
 #endif

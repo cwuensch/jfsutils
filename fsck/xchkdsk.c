@@ -540,7 +540,7 @@ phases_complete:
 		fprintf(stdout, msg_defs[mc_PHASEi].msg_txt);
 
 		int icheck_return  = CheckInodeList(Vol_Label, mc_MarkedFiles, &mc_NrMarkedFiles, mc_parmFixWrongnblocks, 0);
-		if (icheck_return == 0 || (!mc_parmFixWrongnblocks && icheck_return == 2) || (icheck_return >= 0 && (icheck_return & 0x04)))
+		if (icheck_return == rc_ALLFILESOKAY || icheck_return == rc_ALLFILESFIXED)  // alle Dateien ok, oder alle gefixt
 			fprintf(stdout, msg_defs[mc_ICHECKOKAY].msg_txt, mc_NrMarkedFiles, icheck_return);
 		else
 			fprintf(stdout, msg_defs[mc_ICHECKERROR].msg_txt, icheck_return);
@@ -1564,7 +1564,9 @@ int initial_processing(int argc, char **argv)
 			       "mounted file system\nor on a file system other "
 			       "than JFS\nmay cause SEVERE file system damage."
 			       "\n\n", Vol_Label);
-			ask_continue();
+//			ask_continue();
+			printf("Check aborted.\n");
+			exit(exit_value);
 			break;
 
 		default:
@@ -1923,7 +1925,7 @@ void parse_parms(int argc, char **argv)
 		if (mc_CheckInodes)
 		{
 			int i;
-			for(i=0; i < argc - optind - 1; i++)
+			for(i = 0; i < argc - optind - 1; i++)
 			{
 				mc_CheckInodes[mc_NrCheckInodes] = strtoul(argv[optind + 1 + i], NULL, 10);
 				if (mc_CheckInodes[mc_NrCheckInodes] > 0) mc_NrCheckInodes++;

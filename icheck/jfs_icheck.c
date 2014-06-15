@@ -49,12 +49,13 @@
 #include "devices.h"
 #include "inode.h"
 #include "super.h"
+#include "message.h"
 
 #include "lib.h"
 #include "jfs_icheck.h"
 
 #define MY_VERSION  "0.3"
-#define MY_DATE     "2014-06-15"
+#define MY_DATE     "2014-06-14"
 
 #ifdef fsck_BUILD
   #define ick_MAINFUNC() icheck_main
@@ -62,44 +63,31 @@
   #define ick_MAINFUNC() main
 #endif
 
-
-/* return value is an array of some bits */
-#define RV_OKAY                  0x00    /* alle dateien ok */
-#define RV_FILE_NOT_FOUND        0x01    /* mind. eine Datei wurde nicht gefunden */
-#define RV_FILE_NEEDS_FIX        0x02    /* mind. eine Datei hat fehlerhaften Eintrag */
-#define RV_FILE_WAS_FIXED        0x04    /* es gab fehlerhafte Einträge, die wurden aber alle(!) korrigiert */
-#define RV_FILE_CHECKING_FAILED  0x08    /* es gibt Probleme beim Herausfinden der korrekten Blockanzahl... */
-#define RV_FILE_FIXING_FAILED    0x10    /* mind. ein fehlerhaften Eintrag konnte nicht korrigiert werden */
-#define RV_FILE_HAS_WRONG_SIZE   0x20    /* eine Datei wurde nicht korrigiert, da übergebene Dateigröße falsch */
-#define RV_DROP_CACHE_FAILED     0x30    /* Cache auf Platte schreiben fehlgeschlagen */
-int return_value = RV_OKAY;
-
-/* setting some bit of some byte can be so easy ;) */
-#define is_set(x,v)  (((x)&(v)) == (v))
-#define set(x,v)     ((x) |= (v))
+#define setReturnVal(x)  if (return_value <= x) return_value = x;
 
 
 /* Global Data */
-unsigned type_jfs;
-FILE *fp = NULL;           /* Used by libfs routines       */
-int bsize;                 /* aggregate block size         */
-short l2bsize;             /* log2 of aggregate block size */
-int64_t AIT_2nd_offset;    /* Used by find_iag routines    */
-struct dinode cur_inode;
-int64_t cur_address;
+unsigned int            type_jfs;
+FILE                   *fp = NULL;           /* Used by libfs routines       */
+int                     bsize;               /* aggregate block size         */
+short                   l2bsize;             /* log2 of aggregate block size */
+int64_t                 AIT_2nd_offset;      /* Used by find_iag routines    */
+struct                  dinode cur_inode;
+int64_t                 cur_address;
 
 /* global values for our options */
-int opt_tolerance = 1;
-int opt_usefibmap = 0;
-int opt_quiet = 0;
+bool opt_tolerance   =  TRUE;
+bool opt_usefibmap   =  FALSE;
+bool opt_quiet       =  FALSE;
+
 
 /**
  * internal functions
  */
-unsigned long GetBootTime(void)
+time_t GetBootTime(void)
 {
   char                  Buffer[BUFSIZ];
-  static unsigned long  btime = 0;
+  static time_t         btime = 0;
 
   if (btime > 0) return btime;
   FILE *fp = fopen("/proc/stat", "r");
@@ -117,37 +105,10 @@ unsigned long GetBootTime(void)
     return 0;
   }
 }
-unsigned long GetUpTime(void)
+time_t GetUpTime(void)
 {
   return (time(NULL) - GetBootTime());
 }
-/* unsigned int GetUpTime2(void)
-{
-  unsigned int          uptime = 0;
-  FILE                 *fp;
-  double                upsecs;
-
-  fp = fopen("/proc/uptime", "r");
-  if(fp != NULL)
-  {
-    char                buf[BUFSIZ];
-    int                 res;
-    char               *b;
-
-    b = fgets(buf, BUFSIZ, fp);
-    if(b == buf)
-    {
-      /* The following sscanf must use the C locale.  *
-      setlocale(LC_NUMERIC, "C");
-      res = sscanf(buf, "%lf", &upsecs);
-      setlocale(LC_NUMERIC, "");
-      if(res == 1) uptime = (unsigned int)(upsecs);
-    }
-    fclose(fp);
-  }
-  return uptime;
-}  */
-
 
 /**
  * show some info how we where called
@@ -172,7 +133,7 @@ void usage()
  * 2 -> drop dentries and inodes
  * 3 -> drop pagecache, dentries and inodes
  */
-int drop_caches()
+bool drop_caches()
 {
   FILE *fp = fopen("/proc/sys/vm/drop_caches", "w");
 
@@ -181,25 +142,25 @@ int drop_caches()
   sync();
 
   /* open proc file */
-  if (!fp) {
-    perror ("fopen /proc/sys/vm/drop_caches failed, can't flush disk!");
-    set(return_value, RV_DROP_CACHE_FAILED);
-    return 1;
-  }
-
-  /* drop all caches */
-  if (fprintf(fp, "3\n") == -1) {
-    perror("echo 3 > /proc/sys/vm/drop_caches failed!");
-    set(return_value, RV_DROP_CACHE_FAILED);
+  if (fp)
+  {
+    /* drop all caches */
+    if (fprintf(fp, "3\n") > 0)
+    {
+      fclose(fp);
+      return TRUE;
+    }
+    else
+      perror("echo 3 > /proc/sys/vm/drop_caches failed!");
     fclose(fp);
-    return 1;
   }
+  else
+    perror ("fopen /proc/sys/vm/drop_caches failed, can't flush disk!");
 
-  fclose(fp);
-  return 0;
+  return FALSE;
 }
 
-void close_device(int flush_cache)
+void close_device(bool flush_cache)
 {
   ujfs_flush_dev(fp);
   fclose(fp);
@@ -209,44 +170,85 @@ void close_device(int flush_cache)
     drop_caches();
 }
 
-int open_device(char *device)
+bool open_device(char *device)
 {
   struct superblock sb;
 
+  if (Is_Device_Mounted(device) == MSG_JFS_NOT_JFS)
+  {
+    printf("\n%s is mounted and the file system is not type JFS.\n\n"
+		    "WARNING!!!\n"
+		    "Running jfs_icheck on a file system other than JFS\n"
+		    "may cause SEVERE file system damage.\n\n"
+		    "Check aborted.\n", device);
+    return FALSE;
+  }
+
   /* open the device */
   fp = fopen(device, "r+");
-  if (fp == NULL) {
-    perror("Cannot open device.");
-    return(1);
-  }
-
-  /* @ first, drop caches, so we read/write fresh/valid data */
-  drop_caches();
-
-  /* Get block size information from the superblock       */
-  if (ujfs_get_superblk(fp, &sb, 1)) {
-    fprintf(stderr, "error reading primary superblock\n");
-    if (ujfs_get_superblk(fp, &sb, 0)) {
-      fprintf(stderr, "jfs_debugfs: error reading secondary superblock\n");
-      close_device(0);
-      return(1);
-    } else {
-      printf("jfs_debugfs: using secondary superblock\n");
+  if (fp != NULL)
+  {
+    /* @ first, drop caches, so we read/write fresh/valid data */
+    if (!drop_caches())
+    {
+//      setReturnVal(rc_ERRDROPCACHE);
+      fclose(fp);
+      return(FALSE);
     }
-  }
 
-  type_jfs = sb.s_flag;
-  bsize = sb.s_bsize;
-  l2bsize = sb.s_l2bsize;
-  AIT_2nd_offset = addressPXD(&(sb.s_ait2)) * bsize;
-  return(0);
+    /* Get block size information from the superblock */
+    if (ujfs_get_superblk(fp, &sb, 1))
+    {
+      fprintf(stderr, "error reading primary superblock\n");
+      if (ujfs_get_superblk(fp, &sb, 0))
+      {
+        fprintf(stderr, "jfs_debugfs: error reading secondary superblock\n");
+        fclose(fp);
+//        setReturnVal(rc_ERRDEVICEOPEN);
+        return(FALSE);
+      }
+      else
+        printf("jfs_debugfs: using secondary superblock\n");
+    }
+
+    type_jfs = sb.s_flag;
+    bsize = sb.s_bsize;
+    l2bsize = sb.s_l2bsize;
+    AIT_2nd_offset = addressPXD(&(sb.s_ait2)) * bsize;
+    return(TRUE);
+  }
+  else
+    perror("Cannot open device.");
+
+//  setReturnVal(rc_ERRDEVICEOPEN);
+  return(FALSE);
 }
 
 
 /**
- * fix some data on inode
+ * read some inode
  */
-int fix_inode(int64_t used_blks)
+bool read_inode(unsigned int InodeNr)
+{
+  if (!InodeNr || find_inode(InodeNr, FILESYSTEM_I, &cur_address))
+    return(FALSE);
+
+  /* read it */
+  if (xRead(cur_address, sizeof(struct dinode), (char *)&cur_inode) == 0)
+  {
+    fprintf(stderr, "Error reading inode %u\n", InodeNr);
+    return(FALSE);
+  }
+
+  /* swap if on big endian machine */
+  ujfs_swap_dinode(&cur_inode, GET, type_jfs);
+  return TRUE;
+}
+
+/**
+ * fix some data on current inode
+ */
+bool fix_inode(int64_t used_blks)
 {
   /* fix nblocks value */
   cur_inode.di_nblocks = used_blks;
@@ -255,175 +257,185 @@ int fix_inode(int64_t used_blks)
   ujfs_swap_dinode(&cur_inode, PUT, type_jfs);
 
   /* write it */
-  if (xWrite(cur_address, sizeof(struct dinode), (char *)&cur_inode)) {
-    return_value = return_value & (!RV_FILE_WAS_FIXED);
-    set(return_value, RV_FILE_FIXING_FAILED);
-    return 1;
+  if (xWrite(cur_address, sizeof(struct dinode), (char *)&cur_inode) == 0)
+    return TRUE;
+  else
+  {
+    fprintf(stderr, "Error writing data to inode.\n");
+    return FALSE;
+  }
+}
+
+int64_t calc_realblocks()
+{
+  int64_t CurrentBlocks, ExpectedBlocks, RealBlocks;
+
+  // RealBlocks berechnen
+  CurrentBlocks = cur_inode.di_nblocks;
+  ExpectedBlocks = ((cur_inode.di_size + bsize-1) / bsize);
+
+  // bei zu starker Abweichung, probiere +/- 1048576
+  if (CurrentBlocks < ExpectedBlocks)
+  {
+    RealBlocks = CurrentBlocks + 1048576;
+  }
+  else if (CurrentBlocks >= ExpectedBlocks + 1048576)
+  {
+    RealBlocks = CurrentBlocks - 1048576;
+    if (RealBlocks > ExpectedBlocks + 1024)
+      RealBlocks = (CurrentBlocks + 1048576) & 0x0FFFFFFFll;
   }
 
-  if(!is_set(return_value, RV_FILE_FIXING_FAILED))
-    set(return_value, RV_FILE_WAS_FIXED);
-  return 0;
+  // wenn immernoch starke Abweichung, lieber wieder den "Original" berechneten Wert nehmen
+  if ((RealBlocks < ExpectedBlocks) || (RealBlocks > ExpectedBlocks + 1024))
+    RealBlocks = ExpectedBlocks;
+  return RealBlocks;
 }
 
 
-int CheckInodeByNr(char *device, unsigned InodeNr, int64_t RealBlocks, int64_t SizeOfFile, int DoFix)
+int CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64_t SizeOfFile, bool DoFix)
 {
-  int ret = 0;
-  int DeviceOpened = (!fp) ? 1 : 0;
-  if (fp || (open_device(device) == 0))
+  bool                  tolerance_mode = FALSE;
+  tResultCode           ret = rc_UNKNOWN;
+
+  bool DeviceOpened = (!fp) ? TRUE : FALSE;
+  if (fp || open_device(device))
   {
-    int tolerance_mode = 0;
-    int64_t cur_blks, ExpectedBlocks;
-
-    if (!InodeNr || find_inode(InodeNr, FILESYSTEM_I, &cur_address)) {
-      fprintf(stderr, "Can't find inode %u!\n", InodeNr);
-      set(return_value, RV_FILE_NOT_FOUND);
-      return(RV_FILE_NOT_FOUND);
-    }
-
-    /* read it */
-    if (xRead(cur_address, sizeof(struct dinode), (char *)&cur_inode)) {
-      fprintf(stderr, "Error reading inode %u\n", InodeNr);
-      set(return_value, RV_FILE_NOT_FOUND);
-      return(RV_FILE_NOT_FOUND);
-    }
-
-    /* swap if on big endian machine */
-    ujfs_swap_dinode(&cur_inode, GET, type_jfs);
-
-    if ((SizeOfFile != 0) && (cur_inode.di_size != SizeOfFile))
+    // Inode einlesen
+    if (read_inode(InodeNr))
     {
-      printf("??: %s[i=%u] size=%llu, expected %llu (skipping inode)\n",
-             "Inode", InodeNr, cur_inode.di_size, SizeOfFile);
-//      fflush(stdout);
-      set(return_value, RV_FILE_HAS_WRONG_SIZE);
-      return(RV_FILE_HAS_WRONG_SIZE);
-    }
+      // Dateigröße mit der übergebenen vergleichen
+      if ((SizeOfFile == 0) || (cur_inode.di_size == SizeOfFile))
+      {
+        // tatsächliche Blockanzahl berechnen
+        if (RealBlocks == 0)
+        {
+          if (opt_tolerance) tolerance_mode = TRUE;
+          RealBlocks = calc_realblocks();
+        }
 
-    cur_blks = cur_inode.di_nblocks;
-    if (RealBlocks == 0)
+        // mit der eingetragenen Blockzahl vergleichen und Ergebnis ausgeben
+        int64_t cur_blks = cur_inode.di_nblocks;
+
+        if (cur_blks == RealBlocks)
+        {
+          /* good */
+          ret = rc_ALLFILESOKAY;
+          if (!opt_quiet)
+            printf("ok: %s[i=%u] size=%llu blocks=%llu\n", "Inode", InodeNr, cur_inode.di_size, cur_blks);  // good
+        }
+        else if (tolerance_mode && (cur_blks >= RealBlocks) && (cur_blks <= RealBlocks + 100))
+        {
+          /* tolerance */
+          ret = rc_ALLFILESOKAY;
+          if (!opt_quiet)
+            printf("ok?: %s[i=%u] size=%llu blocks=%llu, should be %llu (tolerated)\n", "Inode", InodeNr, cur_inode.di_size, cur_blks, RealBlocks);
+        }
+        else
+        {
+          /* wrong */
+          if (!opt_quiet)
+            printf("??: %s[i=%u] size=%llu blocks=%llu, should be %llu", "Inode", InodeNr, cur_inode.di_size, cur_blks, RealBlocks);
+
+          // now the real fixing, if needed
+          if (DoFix && fix_inode(RealBlocks))
+          {
+            ret = rc_ALLFILESFIXED;
+            if (!opt_quiet) printf(" (has been fixed)");
+          }
+          else
+          {
+            ret = rc_SOMENOTFIXED;
+            if (!opt_quiet) printf(" (Error! NOT fixed)");
+          }
+          if(!opt_quiet) printf("\n");
+        }
+      }
+      else
+      {
+        if (!opt_quiet)
+          printf("??: %s[i=%u] size=%llu, expected %llu (skipping inode)\n", "Inode", InodeNr, cur_inode.di_size, SizeOfFile);
+        ret = rc_NOFILEFOUND;
+      }
+    }
+    else
     {
-      // RealBlocks berechnen
-      if (opt_tolerance) tolerance_mode = 1;
-      ExpectedBlocks = ((cur_inode.di_size + bsize-1) / bsize);
-
-      // bei zu starker Abweichung, probiere +/- 1048576
-      if (cur_blks < ExpectedBlocks)
-      {
-        RealBlocks = cur_blks + 1048576;
-fprintf(stdout, "Probiere RealBlocks=%lld\n", RealBlocks);
-      }
-      else if (cur_blks >= ExpectedBlocks + 1048576)
-      {
-        RealBlocks = cur_blks - 1048576;
-fprintf(stdout, "Probiere RealBlocks=%lld\n", RealBlocks);
-        if (RealBlocks > ExpectedBlocks + 1024)
-          RealBlocks = (cur_blks + 1048576) & 0x0FFFFFFFll;
-fprintf(stdout, "Probiere RealBlocks=%lld\n", RealBlocks);
-      }
-
-      // wenn immernoch starke Abweichung, lieber wieder den "Original" berechneten Wert nehmen
-      if ((RealBlocks < ExpectedBlocks) || (RealBlocks > ExpectedBlocks + 1024))
-        RealBlocks = ExpectedBlocks;
-    }
-
-    if (!opt_quiet) {
-      if (cur_blks == RealBlocks) {
-        /* good */
-        printf("ok: %s[i=%u] size=%llu blocks=%llu\n",
-               "Inode", InodeNr, cur_inode.di_size, cur_blks);
-      } else if (tolerance_mode && (cur_blks >= RealBlocks) && (cur_blks <= RealBlocks + 100)) {
-        /* okay?, tolerance */
-        printf("ok?: %s[i=%u] size=%llu blocks=%llu, should be %llu (tolerated)\n",
-               "Inode", InodeNr, cur_inode.di_size, cur_blks, RealBlocks);
-      } else {
-        /* wrong */
-        printf("??: %s[i=%u] size=%llu blocks=%llu, should be %llu",
-               "Inode", InodeNr, cur_inode.di_size, cur_blks, RealBlocks);
-        if (DoFix)
-          printf(" (will be fixed)");
-        printf("\n");
-      }
-//      fflush(stdout);
-    }
-
-    /* now the real fixing, if needed */
-    if (cur_blks != RealBlocks) {
-      set(ret, RV_FILE_NEEDS_FIX);
-      set(return_value, RV_FILE_NEEDS_FIX);
-      if (DoFix)
-        if (fix_inode(RealBlocks) == 0)
-          set(ret, RV_FILE_WAS_FIXED);
+      printf("Can't find inode %u!\n", InodeNr);
+      ret = rc_NOFILEFOUND;
     }
     if (DeviceOpened) close_device(DoFix);
   }
+  else
+    ret = rc_ERRDEVICEOPEN;
   return(ret);
 }
 
-int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, int DoFix)
+int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, bool DoFix)
 {
-  struct stat st;
-  long long unsigned size, cur_blks, used_blks, total_blks, blk;
-  unsigned ino, blknum;
-  int fd;
+  struct stat           st;
+  int                   fd;
 
   /* open the file */
   fd = open(filename, O_RDONLY);
-  if (fd == -1) {
-    fprintf(stderr, "File not found: \"%s\"\n", filename);
-//    fflush(stderr);
-    set(return_value, RV_FILE_NOT_FOUND);
-    return(RV_FILE_NOT_FOUND);
-  }
-  fsync(fd);    /* just again ;) */
-
-  if (fstat(fd, &st) == -1) {
-    perror(filename);
-    set(return_value, RV_FILE_NOT_FOUND);
-    close(fd);
-    return(RV_FILE_NOT_FOUND);
-  }
-
-  if (opt_usefibmap && (RealBlocks == 0))
+  if (fd != -1)
   {
-    /* check more blocks, cause JFS can split files across AG's */
-    #define SOME_MORE_BLOCKS 1024 * 4
+    fsync(fd);    /* just again ;) */
 
-    total_blks = (st.st_size + st.st_blksize - 1) / st.st_blksize + SOME_MORE_BLOCKS;
-    for (RealBlocks = 0, blk = 0; blk < total_blks; blk++) {
-      blknum = blk;  /* FIBMAP ist nur 32bit ... */
-      if (ioctl(fd, FIBMAP, &blknum) == -1) {
-        perror("ioctl(FIBMAP)");
-        set(return_value, RV_FILE_NOT_FOUND);
-        close(fd);
-        return(RV_FILE_NOT_FOUND);
+    if (fstat(fd, &st) != -1)
+    {
+      // ggf. Blockzahl durch FIBMAP ermitteln
+      if (opt_usefibmap && (RealBlocks == 0))
+      {
+        /* check more blocks, cause JFS can split files across AG's */
+        uint64_t total_blks, blk;
+        unsigned int blknum;
+        #define SOME_MORE_BLOCKS 1024 * 4
+
+        total_blks = (st.st_size + st.st_blksize - 1) / st.st_blksize + SOME_MORE_BLOCKS;
+        for (RealBlocks = 0, blk = 0; blk < total_blks; blk++)
+        {
+          blknum = blk;  /* FIBMAP ist nur 32bit ... */
+          if (ioctl(fd, FIBMAP, &blknum) == -1)
+          {
+            perror("ioctl(FIBMAP)");
+            RealBlocks = 0;
+            break;
+          }
+          if(blknum != 0) RealBlocks++;
+        }
       }
+      close(fd);
 
-      if (blknum != 0)
-        RealBlocks++;
+      return (CheckInodeByNr(device, st.st_ino, RealBlocks, 0, DoFix));
+    }
+    else
+    {
+      close(fd);
+      fprintf(stderr, "Error reading file: \"%s\"\n", filename);
+      return rc_SOMENOTFIXED;
     }
   }
-  close(fd);
 
-  CheckInodeByNr(device, st.st_ino, RealBlocks, 0, DoFix);
+  printf("File not found: \"%s\"\n", filename);
+  return rc_NOFILEFOUND;
 }
 
-int CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, int DoFix, int DeleteOldEntries)
+int CheckInodeList(char *device, tInodeData InodeList[], unsigned int *NrInodes, bool DoFix, bool DeleteOldEntries)
 {
-  char                  CommandLine[512];
-  int                   NrGiven = *NrInodes, NrFound = 0, NrOk = 0, NrOkOk = 0, NrFixed = 0;
-  int                   i, j, ret = 0;
+  unsigned int          NrGiven = *NrInodes, NrFound = 0, NrOk = 0, NrOkSinceBoot = 0, NrFixed = 0;
+  int                   ret, return_value = rc_UNKNOWN;
+  int                   i, j;
 
   if (InodeList && (*NrInodes > 0))
   {
-    if (open_device(device) == 0)
+    if (open_device(device))
     {
       for (i = 0; i < *NrInodes; i++)
       {
-//fprintf(stdout, "%d. InodeNr=%lu, LastFixTime=%lu, UpTime=%lu\n", i, InodeList[i].InodeNr, InodeList[i].LastFixTime, GetUpTime());
+printf("%d. InodeNr=%u, LastFixTime=%lu, UpTime=%lu\n", i, InodeList[i].InodeNr, InodeList[i].LastFixTime, GetUpTime());
         ret = CheckInodeByNr(device, InodeList[i].InodeNr, InodeList[i].nblocks_real, InodeList[i].di_size, DoFix);
-        if ((ret < 0) || is_set(ret, RV_FILE_NOT_FOUND) || is_set(ret, RV_FILE_HAS_WRONG_SIZE))
+        setReturnVal(ret);
+        if (ret == rc_NOFILEFOUND)
         {
           // Datei existiert nicht -> lösche aus der Liste
           if (DeleteOldEntries)
@@ -435,7 +447,7 @@ int CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, int DoFi
           }
           continue;
         }
-        else if (ret == 0)
+        else if (ret == rc_ALLFILESOKAY)
         {
           // Datei ist okay
           NrFound++; NrOk++;
@@ -443,7 +455,7 @@ int CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, int DoFi
           if((InodeList[i].LastFixTime > 0) && (GetUpTime() < InodeList[i].LastFixTime))
           {
             // Datei wurde VOR dem letzten Neustart korrigiert -> lösche aus der Liste
-            NrOkOk++;
+            NrOkSinceBoot++;
             if (DeleteOldEntries)
             {
               (*NrInodes)--;
@@ -458,26 +470,32 @@ int CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, int DoFi
         {
           // Datei wurde (erfolgreich?) korrigiert
           NrFound++;
-          if (is_set(ret, RV_FILE_WAS_FIXED)) NrFixed++;
+          if (ret == rc_ALLFILESFIXED) NrFixed++;
         }
-        /*if(DoFix)*/ InodeList[i].LastFixTime = GetUpTime();
+        InodeList[i].LastFixTime = GetUpTime();
       }
       close_device(DoFix);
-    }
-  }
 
-  printf("%d files given, %d found. %d of them ok (%d ok since last reboot), %d were fixed.\n",
-         NrGiven, NrFound, NrOk, NrOkOk, NrFixed);
-  printf("NrInodes = %lu\n", *NrInodes);
-  return return_value;
+      printf("%u files given, %u found. %u of them ok (%u ok since last reboot), %u were fixed.\n", NrGiven, NrFound, NrOk, NrOkSinceBoot, NrFixed);
+printf("NrInodes = %u\n", *NrInodes);
+      return return_value;
+    }
+    else
+      return rc_ERRDEVICEOPEN;
+  }
+  else
+  {
+    printf("No files specified!\n");
+    return rc_ALLFILESOKAY;
+  }
 }
 
-int CheckInodeListFile(char *device, char *ListFileName, int DoFix, int DeleteOldEntries)
+int CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool DeleteOldEntries)
 {
   tInodeData           *InodeList  = NULL;
   FILE                 *fInodeList = NULL;
-  int                   NrInodes = 0;
-  int                   ret = 0;
+  unsigned int          NrInodes;
+  int                   return_value = rc_UNKNOWN;
 
   fInodeList = fopen(ListFileName, "rb");
   if(fInodeList)
@@ -487,125 +505,146 @@ int CheckInodeListFile(char *device, char *ListFileName, int DoFix, int DeleteOl
     long fs = ftell(fInodeList);
     rewind(fInodeList);
 
-    tInodeData *InodeList = (tInodeData*) malloc((fs + sizeof(tInodeData)-1) / sizeof(tInodeData) * sizeof(tInodeData));
+    tInodeData *InodeList = (tInodeData*) malloc(fs / sizeof(tInodeData) * sizeof(tInodeData));
     if (InodeList)
     {
-      while (!feof(fInodeList))
+      NrInodes = fread(&InodeList, sizeof(tInodeData), (fs / sizeof(tInodeData)), fInodeList);
+      fclose(fInodeList);
+
+      if (NrInodes == fs / sizeof(tInodeData))
+        return_value = CheckInodeList(device, InodeList, &NrInodes, DoFix, DeleteOldEntries);
+      else
       {
-        ret = fread(&InodeList[NrInodes], sizeof(tInodeData), 10, fInodeList);
-        NrInodes += ret;
+        fprintf(stderr, "Error! List file could not be fully loaded.\n");
+        fclose(fInodeList);
+        free(InodeList);
+        return rc_ERRLISTFILEOPEN;
+      }
+    }
+    else
+    {
+      fclose(fInodeList);
+      fprintf(stderr, "Error! Not enough memory to load the file.\n");
+      return rc_ERRLISTFILEOPEN;
+    }
+  }
+  else
+  {
+    printf("List file not found: \"%s\".\n", ListFileName);
+    return rc_ERRLISTFILEOPEN;
+  }
+
+  if((NrInodes > 0) /*&& (DoFix || DeleteOldEntries)*/)
+  {
+    fInodeList = fopen(ListFileName, "wb");
+    if(fInodeList)
+    {
+      if (fwrite(InodeList, sizeof(tInodeData), NrInodes, fInodeList) != NrInodes)
+      {
+        fprintf(stderr, "Error writing the updated inode list to file!\n");
+        setReturnVal(rc_ERRLISTFILEWRT);
       }
       fclose(fInodeList);
     }
     else
     {
-      fprintf(stderr, "Error! Not enough memory to load the file.\n");
-      return -1;
+      fprintf(stderr, "Error writing the updated inode list to file!\n");
+      setReturnVal(rc_ERRLISTFILEWRT);
     }
-
-    ret = CheckInodeList(device, InodeList, &NrInodes, DoFix, DeleteOldEntries);
-
-    if((NrInodes > 0) /*&& (DoFix || DeleteOldEntries)*/)
-    {
-      fInodeList = fopen(ListFileName, "wb");
-      if(fInodeList)
-      {
-        if (fwrite(InodeList, sizeof(tInodeData), NrInodes, fInodeList) != NrInodes)
-          fprintf(stdout, "Error writing the updated inode list to file!\n");
-        fclose(fInodeList);
-      }
-      else
-        fprintf(stderr, "Error writing the updated inode list to file!\n");
-    }
-    else if ((NrInodes == 0) && DeleteOldEntries)
-      remove(ListFileName);
-    free(InodeList);
   }
-  else
-    fprintf(stdout, "List file not found: '%s'.\n", ListFileName);
+  else if ((NrInodes == 0) && DeleteOldEntries)
+    remove(ListFileName);
+  free(InodeList);
   
-  return ret;
+  return return_value;
 }
 
 
-int jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t RealBlocks, int UseInodeNums, int DoFix)
+int jfs_icheck(char *device, char *filenames[], unsigned int NrFiles, int64_t RealBlocks, bool UseInodeNums, bool DoFix)
 {
-  if (open_device(device) == 0)
+  int return_value = rc_UNKNOWN;
+
+  if (open_device(device))
   {
     /* for each given file ... */
     int i;
     for (i = 0; i < NrFiles; i++) {
       if(UseInodeNums)
-        CheckInodeByNr(device, strtoull(filenames[i], NULL, 10), RealBlocks, 0, DoFix);
+        return_value = CheckInodeByNr(device, strtoul(filenames[i], NULL, 10), RealBlocks, FALSE, DoFix);
       else
-        CheckInodeByName(device, filenames[i], RealBlocks, DoFix);
+        return_value = CheckInodeByName(device, filenames[i], RealBlocks, DoFix);
     }
     close_device(DoFix);
   }
-  return(return_value);
+  else
+    return rc_ERRDEVICEOPEN;
+
+  return return_value;
 }
 
 int ick_MAINFUNC()(int argc, char *argv[])
 {
-  int opt;    /* for getopt() */
-  int opt_useinodenums = 0;
-  int opt_fixinode = 0;
-  int opt_realsize = 0;
-  char opt_listfile[512]; opt_listfile[0] = '\0';
-  int opt_deleteoldentries = 0;
+  int                   opt;    /* for getopt() */
+  bool                  opt_useinodenums     = FALSE;
+  bool                  opt_fixinode         = FALSE;
+  bool                  opt_realsize         = FALSE;
+  char                  opt_listfile[512];     opt_listfile[0] = '\0';
+  bool                  opt_deleteoldentries = FALSE;
+  int                   return_value         = rc_UNKNOWN;
 
-  printf("jfs_icheck version %s, %s, written by T. Reichardt & C. Wuensch\n",
-         MY_VERSION, MY_DATE);
   while ((opt = getopt(argc, argv, "ib:l:L:tcfqh?")) != -1) {
     switch (opt) {
       case 'i':
-        opt_useinodenums = 1;
+        opt_useinodenums = TRUE;
         break;
       case 'b':
         opt_realsize = strtoul(optarg, NULL, 0);
         break;
       case 'L':
-        opt_deleteoldentries = 1;
+        opt_deleteoldentries = TRUE;
       case 'l':
         strncpy(opt_listfile, optarg, sizeof(opt_listfile));
         opt_listfile[sizeof(opt_listfile)-1] = '\0';
         break;
 /*      case 't':
-        opt_tolerance = 1;
+        opt_tolerance = TRUE;
         break;  */
       case 'c':
-        opt_usefibmap = 1;
+        opt_usefibmap = TRUE;
         break;
       case 'f':
-        opt_fixinode = 1;
+        opt_fixinode = TRUE;
         break;
       case 'q':
-        opt_quiet = 1;
+        opt_quiet = TRUE;
         break;
       case 'h':
       case '?':
-        usage();
-        return(0);
       default:
+        printf("jfs_icheck version %s, %s, written by T. Reichardt & C. Wuensch\n", MY_VERSION, MY_DATE);
         usage();
-        return(1);
+        return rc_NOFILEFOUND;
     }
   }
+
+  if (!opt_quiet)
+    printf("jfs_icheck version %s, %s, written by T. Reichardt & C. Wuensch\n", MY_VERSION, MY_DATE);
 
   /**
    * not only options, we need argc = optind+2
    * argv[0] = ./jfs_tune
-   * argv[1] = -f
-   * argv[2] = -c
-   * argv[3] = -q
-   * argv[4] = partition (=> optind)
-   * argv[5] = file1
-   * argv[6] = file2
+   * argv[1] = -i
+   * argv[2] = partition (=> optind)
+   * argv[3] = file1
+   * argv[4] = file2
    */
-  if ((argc <= optind) || (argc <= optind + 1 && !opt_listfile[0]))
+  if (argc <= optind)
   {
+    printf("No partition specified!\n");
+    if (argc <= optind + 1 && !opt_listfile[0])
+      printf("No files specified!\n");
     usage();
-    return(1);
+    return rc_NOFILEFOUND;
   }
 
 
@@ -624,9 +663,9 @@ if (f)
 
 
   if(opt_listfile[0])
-    CheckInodeListFile(argv[optind], opt_listfile, opt_fixinode, opt_deleteoldentries);
+    return_value = CheckInodeListFile(argv[optind], opt_listfile, opt_fixinode, opt_deleteoldentries);
   else /* if(!opt_realsize) */
-    jfs_icheck(argv[optind], &argv[optind+1], argc - optind - 1, opt_realsize, opt_useinodenums, opt_fixinode);
+    return_value = jfs_icheck(argv[optind], &argv[optind+1], argc - optind - 1, opt_realsize, opt_useinodenums, opt_fixinode);
 /*  else
   {
     if(opt_useinodenums)
@@ -651,5 +690,5 @@ if (f)
   fclose(f);
 }*/
 
-  return(return_value);
+  return return_value;
 }
