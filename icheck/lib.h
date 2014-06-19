@@ -24,16 +24,18 @@
 
 #include <config.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <errno.h>
 
-#include "jfs_icheck.h"
-
+#include "jfs_types.h"
 #include "jfs_endian.h"
 #include "jfs_filsys.h"
 #include "jfs_dinode.h"
 #include "inode.h"
 #include "devices.h"
+
+#include "jfs_icheck.h"
 
 int xRead(int64_t address, unsigned count, char *buffer);
 int xWrite(int64_t address, unsigned count, char *buffer);

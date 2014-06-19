@@ -25,25 +25,21 @@
 #ifndef H_JFS_ICHECK
 #define H_JFS_ICHECK
 
-#include <stdio.h>
-
-#include "jfs_types.h"
-#include "jfs_dinode.h"
-#include "jfs_imap.h"
-#include "jfs_superblock.h"
-
-#ifndef TRUE
-#define TRUE            true
-#endif
-#ifndef FALSE
-#define FALSE           false
+#ifndef __MOVIECUTTERLIB__
+  #include "jfs_types.h"
+  #ifndef TRUE
+  #define TRUE            true
+  #endif
+  #ifndef FALSE
+  #define FALSE           false
+  #endif
 #endif
 
-/**
-/* Return Values
+/*
+ * Return Values
  * (the return value can ONLY be increased during the programme!)
  */
-typedef enum tResultCode
+typedef enum tReturnCode
 {
   rc_UNKNOWN         = -1,
   rc_NOFILEFOUND     =  0,    // es wurde KEINE der übergebenen Dateien gefunden
@@ -53,7 +49,15 @@ typedef enum tResultCode
   rc_ERRDEVICEOPEN   =  4,    // Fehler der Prerequisites
   rc_ERRLISTFILEOPEN =  5,    // Fehler beim Öffnen des ListFiles
   rc_ERRLISTFILEWRT  =  6     // Fehler beim Schreiben des ListFiles
-} tResultCode;
+} tReturnCode;
+
+typedef struct
+{
+  char Magic            [6];  // TFinos
+  short                 Version;
+  unsigned long         NrEntries;
+  unsigned long         FileSize;
+} tInodeListHeader;
 
 typedef struct
 {
@@ -66,18 +70,20 @@ typedef struct
 } tInodeData;
 
 
-/* Global Data */
-extern unsigned type_jfs;
-extern int bsize;
-extern FILE *fp;
-extern short l2bsize;
-extern int64_t AIT_2nd_offset;   /* Used by find_iag routines */
+#ifndef __MOVIECUTTERLIB__
+  /* Global Data */
+  extern unsigned type_jfs;
+  extern int bsize;
+  extern FILE *fp;
+  extern short l2bsize;
+  extern int64_t AIT_2nd_offset;   /* Used by find_iag routines */
 
-/* Global Functions */
-int jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t RealBlocks, bool UseInodeNums, bool DoFix);
-int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, bool DoFix);
-int CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64_t SizeOfFile, bool DoFix);
-int CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, bool DoFix, bool DeleteOldEntries);
-int CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool DeleteOldEntries);
+  /* Global Functions */
+  int jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t RealBlocks, bool UseInodeNums, bool DoFix);
+  int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, bool DoFix);
+  int CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64_t SizeOfFile, bool DoFix);
+  int CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, bool DoFix, bool DeleteOldEntries);
+  int CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool DeleteOldEntries);
+#endif
 
 #endif
