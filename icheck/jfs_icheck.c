@@ -63,7 +63,7 @@
   #define ick_MAINFUNC() main
 #endif
 
-#define setReturnVal(x)  if (return_value <= x) return_value = x;
+#define setReturnVal(x)  if (return_value <= x) return_value = x
 
 
 /* Global Data */
@@ -124,7 +124,7 @@ void usage()
            " -c        calculate the real size via FIBMAP (not with -i, default: off)\n"
            " -f        fix the inode block number value (default: off)\n"
            " -q        enable quiet mode (default: off)\n"
-           " -h        show some help about usage\n");
+           " -h        show some help about usage\n\n");
 }
 
 
@@ -177,9 +177,6 @@ bool open_device(char *device)
   if (Is_Device_Mounted(device) == MSG_JFS_NOT_JFS)
   {
     printf("\n%s is mounted and the file system is not type JFS.\n\n"
-		    "WARNING!!!\n"
-		    "Running jfs_icheck on a file system other than JFS\n"
-		    "may cause SEVERE file system damage.\n\n"
 		    "Check aborted.\n", device);
     return FALSE;
   }
@@ -218,7 +215,7 @@ bool open_device(char *device)
     return(TRUE);
   }
   else
-    perror("Cannot open device.");
+    perror("Cannot open device");
 
 //  setReturnVal(rc_ERRDEVICEOPEN);
   return(FALSE);
@@ -234,9 +231,9 @@ bool read_inode(unsigned int InodeNr)
     return(FALSE);
 
   /* read it */
-  if (xRead(cur_address, sizeof(struct dinode), (char *)&cur_inode) == 0)
+  if (xRead(cur_address, sizeof(struct dinode), (char *)&cur_inode) != 0)
   {
-    fprintf(stderr, "Error reading inode %u\n", InodeNr);
+    fprintf(stderr, "Error reading inode %u!\n", InodeNr);
     return(FALSE);
   }
 
@@ -346,7 +343,8 @@ int CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64
           else
           {
             ret = rc_SOMENOTFIXED;
-            if (!opt_quiet) printf(" (Error! NOT fixed)");
+            if (!opt_quiet)
+              printf((DoFix) ? " (Error! NOT fixed)" : " (not fixed)");
           }
           if(!opt_quiet) printf("\n");
         }
@@ -354,13 +352,13 @@ int CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64
       else
       {
         if (!opt_quiet)
-          printf("??: %s[i=%u] size=%llu, expected %llu (skipping inode)\n", "Inode", InodeNr, cur_inode.di_size, SizeOfFile);
+          printf("--: %s[i=%u] size=%llu, expected %llu (skipping inode)\n", "Inode", InodeNr, cur_inode.di_size, SizeOfFile);
         ret = rc_NOFILEFOUND;
       }
     }
     else
     {
-      printf("Can't find inode %u!\n", InodeNr);
+      printf("Inode not found: %u\n", InodeNr);
       ret = rc_NOFILEFOUND;
     }
     if (DeviceOpened) close_device(DoFix);
@@ -420,9 +418,9 @@ int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, bool DoFi
   return rc_NOFILEFOUND;
 }
 
-int CheckInodeList(char *device, tInodeData InodeList[], unsigned int *NrInodes, bool DoFix, bool DeleteOldEntries)
+int CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, bool DoFix, bool DeleteOldEntries)
 {
-  unsigned int          NrGiven = *NrInodes, NrFound = 0, NrOk = 0, NrOkSinceBoot = 0, NrFixed = 0;
+  int                   NrGiven = *NrInodes, NrFound = 0, NrOk = 0, NrOkSinceBoot = 0, NrFixed = 0;
   int                   ret, return_value = rc_UNKNOWN;
   int                   i, j;
 
@@ -494,7 +492,7 @@ int CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool Delete
 {
   tInodeData           *InodeList  = NULL;
   FILE                 *fInodeList = NULL;
-  unsigned int          NrInodes;
+  int                   NrInodes = 0;
   int                   return_value = rc_UNKNOWN;
 
   fInodeList = fopen(ListFileName, "rb");
@@ -505,10 +503,10 @@ int CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool Delete
     long fs = ftell(fInodeList);
     rewind(fInodeList);
 
-    tInodeData *InodeList = (tInodeData*) malloc(fs / sizeof(tInodeData) * sizeof(tInodeData));
+    InodeList = (tInodeData*) malloc(fs / sizeof(tInodeData) * sizeof(tInodeData));
     if (InodeList)
     {
-      NrInodes = fread(&InodeList, sizeof(tInodeData), (fs / sizeof(tInodeData)), fInodeList);
+      NrInodes = fread(InodeList, sizeof(tInodeData), (fs / sizeof(tInodeData)), fInodeList);
       fclose(fInodeList);
 
       if (NrInodes == fs / sizeof(tInodeData))
@@ -534,7 +532,7 @@ int CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool Delete
     return rc_ERRLISTFILEOPEN;
   }
 
-  if((NrInodes > 0) /*&& (DoFix || DeleteOldEntries)*/)
+  if(InodeList && (NrInodes > 0) /*&& (DoFix || DeleteOldEntries)*/)
   {
     fInodeList = fopen(ListFileName, "wb");
     if(fInodeList)
@@ -560,9 +558,9 @@ int CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool Delete
 }
 
 
-int jfs_icheck(char *device, char *filenames[], unsigned int NrFiles, int64_t RealBlocks, bool UseInodeNums, bool DoFix)
+int jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t RealBlocks, bool UseInodeNums, bool DoFix)
 {
-  int return_value = rc_UNKNOWN;
+  int ret, return_value = rc_UNKNOWN;
 
   if (open_device(device))
   {
@@ -570,9 +568,10 @@ int jfs_icheck(char *device, char *filenames[], unsigned int NrFiles, int64_t Re
     int i;
     for (i = 0; i < NrFiles; i++) {
       if(UseInodeNums)
-        return_value = CheckInodeByNr(device, strtoul(filenames[i], NULL, 10), RealBlocks, FALSE, DoFix);
+        ret = CheckInodeByNr(device, strtoul(filenames[i], NULL, 10), RealBlocks, FALSE, DoFix);
       else
-        return_value = CheckInodeByName(device, filenames[i], RealBlocks, DoFix);
+        ret = CheckInodeByName(device, filenames[i], RealBlocks, DoFix);
+      setReturnVal(ret);
     }
     close_device(DoFix);
   }
@@ -638,11 +637,12 @@ int ick_MAINFUNC()(int argc, char *argv[])
    * argv[3] = file1
    * argv[4] = file2
    */
-  if (argc <= optind)
+  if ((argc <= optind) || ((argc <= optind + 1) && !opt_listfile[0]))
   {
-    printf("No partition specified!\n");
-    if (argc <= optind + 1 && !opt_listfile[0])
-      printf("No files specified!\n");
+    printf("\n");
+    if (argc <= optind)
+      printf("No partition specified!\n");
+    printf("No files specified!\n");
     usage();
     return rc_NOFILEFOUND;
   }

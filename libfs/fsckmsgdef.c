@@ -598,13 +598,13 @@ struct fsck_message msg_defs[fsck_highest_msgid_defined+1] = {
   /* 588 */ { lrdo_LRMWFAIL3, "LOGREDO:   logRead: Log data must not exceed LOGPSIZE (pno = (d) %d).", fsck_debug},
   /* 589 */ { lrdo_LOGINUSE, "LOGREDO:  Log is in use.", fsck_debug},
   /* 590 */ { avail_for_debug_only_590, "*undefined*", fsck_debug},
-  /* 591 */ { avail_for_debug_only_591, "*undefined*", fsck_debug},
-  /* 592 */ { mc_FINISHED,              "**Finished.", fsck_quiet},
+  /* 591 */ { mc_FINISHED,              "**Finished.", fsck_quiet},
+  /* 592 */ { mc_CHECKABORTED,          "MC corrupted inodes have been found. Would be released. Check aborted!", fsck_debug},
   /* 593 */ { mc_PHASEi,                "**Phase i - correction of wrong inode values\n", fsck_quiet},
   /* 594 */ { mc_DEFECTFILEFOUND,       "[MC1] %lu: inode is incorrect (nblocks=%lld, real=%lld, size=%lld).", fsck_quiet},
   /* 595 */ { mc_ERRORMARKINGFILE,      "[MC2] %lu: Error marking the inode for correction.", fsck_quiet},
   /* 596 */ { mc_SUMMARYDEFECTFILES,    "[MC3] %d incorrect inodes found, %d marked for correction.", fsck_quiet},
   /* 597 */ { mc_ICHECKOKAY,            "[MC5] %d marked files successfully fixed. (%d)\n", fsck_quiet},
   /* 598 */ { mc_ICHECKERROR,           "[MC6] Error! Correction with icheck returned %d.\n", fsck_quiet},
-  /* 599 */ { mc_LISTWRITEERROR,        "[MC9] Error! Cannot write to list file '%s'.\n", fsck_quiet},
+  /* 599 */ { mc_LISTWRITEERROR,        "[MC9] Error! Cannot write to list file '%s'.\n", fsck_quiet}
 };

@@ -381,8 +381,13 @@ int main(int argc, char **argv)
 		goto phases_complete;
 	rc = phase4_processing();
 //	fflush(stdout);
-    if (agg_recptr->fsck_is_done || mc_parmFirstStepsOnly || mc_NrDefectFiles > 0)
+	if (agg_recptr->fsck_is_done || mc_parmFirstStepsOnly || (mc_NrDefectFiles > 0 && mc_parmFixWrongnblocks))
 		goto phases_complete;
+	if (mc_NrDefectFiles > 0 && !agg_recptr->processing_readonly)
+	{
+		fsck_send_msg(mc_CHECKABORTED);
+		goto phases_complete;
+	}
 	rc = phase5_processing();
 	if (agg_recptr->fsck_is_done)
 		goto phases_complete;
@@ -548,12 +553,12 @@ phases_complete:
 
 	if(mc_parmListFile[0])
 	{
-		FILE *tf = fopen(mc_parmListFile, "wb");
-		if(tf)
+		FILE *lf = fopen(mc_parmListFile, "wb");
+		if(lf)
 		{
-			if(fwrite(mc_MarkedFiles, sizeof(tInodeData), mc_NrMarkedFiles, tf) != mc_NrMarkedFiles)
+			if(fwrite(mc_MarkedFiles, sizeof(tInodeData), mc_NrMarkedFiles, lf) != mc_NrMarkedFiles)
 			fprintf(stdout, msg_defs[mc_LISTWRITEERROR].msg_txt, mc_parmListFile);
-			fclose(tf);
+			fclose(lf);
 		}
 		else
 			fprintf(stdout, msg_defs[mc_LISTWRITEERROR].msg_txt, mc_parmListFile);
@@ -561,7 +566,7 @@ phases_complete:
     
 	if (mc_MarkedFiles) free(mc_MarkedFiles);
 	if (mc_CheckInodes) free(mc_CheckInodes);
-	fprintf(stdout, "**Finished.\n");
+	fprintf(stdout, "**Finished all.\n");
 
 	if (!agg_recptr->stdout_redirected) {
 		/* end the "running" indicator */
@@ -2320,8 +2325,7 @@ int phase4_processing()
 		 */
 		p4_rc = report_problems_setup_repairs();
 	}
-
-    if (p4_rc != FSCK_OK) {
+	if (p4_rc != FSCK_OK) {
 		agg_recptr->fsck_is_done = 1;
 		exit_value = FSCK_OP_ERROR;
 	}
@@ -3213,7 +3217,7 @@ void ask_continue()
 
 void fsck_usage()
 {
-	printf("\nUsage:  %s [-afnpvVrqiL] [-L file] [-j journal_device] [--omit_journal_replay] "
+	printf("\nUsage:  %s [-afnpvVrqi] [-L file] [-j journal_device] [--omit_journal_replay] "
 	       "[--replay_journal_only] device\n", program_name);
 	printf("\nEmergency help:\n"
 	       " -a                 Automatic repair.\n"
