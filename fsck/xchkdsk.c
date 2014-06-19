@@ -259,7 +259,7 @@ int main(int argc, char **argv)
 	       agg_recptr, bmap_recptr);
 #endif
 
-	printf("%s version %sb, %s\n", program_name, VERSION, JFSUTILS_DATE);
+	printf("%s version %s-TF, %s\n", program_name, VERSION, JFSUTILS_DATE);
 	printf("(modified for Topfield PVRs by T.Reichardt & C. Wuensch)\n");
 
 	wsp_dynstg_action = dynstg_unknown;

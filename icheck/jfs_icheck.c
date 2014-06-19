@@ -59,7 +59,7 @@
 #include "jfs_icheck.h"
 
 #define MY_VERSION  "0.3"
-#define MY_DATE     "2014-06-14"
+#define MY_DATE     "2014-06-18"
 
 #ifdef fsck_BUILD
   #define ick_MAINFUNC() icheck_main
