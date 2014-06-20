@@ -506,7 +506,7 @@ int CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool Delete
   {
     // Dateigröße bestimmen um Puffer zu allozieren
     fseek(fInodeList, 0, SEEK_END);
-    long fs = ftell(fInodeList);
+    fs = ftell(fInodeList);
     rewind(fInodeList);
 
     // Header prüfen
