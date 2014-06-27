@@ -28,12 +28,14 @@
 #ifndef __MOVIECUTTERLIB__
   #include "jfs_types.h"
   #ifndef TRUE
-  #define TRUE            true
+  #define TRUE          true
   #endif
   #ifndef FALSE
-  #define FALSE           false
+  #define FALSE         false
   #endif
 #endif
+
+#define UNIXTIME2010    1262304000   // = 2010-01-01 0:00
 
 /*
  * Return Values
@@ -61,7 +63,7 @@ typedef struct
 
 typedef struct
 {
-  unsigned long         InodeNr;
+  unsigned int          InodeNr;
   unsigned long         LastFixTime;
   int64_t               di_size;
   int64_t               nblocks_real;

@@ -59,7 +59,7 @@
 #include "jfs_icheck.h"
 
 #define MY_VERSION  "0.3"
-#define MY_DATE     "2014-06-20"
+#define MY_DATE     "2014-06-26"
 
 #ifdef fsck_BUILD
   #define ick_MAINFUNC() icheck_main
@@ -88,10 +88,10 @@ bool opt_quiet       =  FALSE;
 /**
  * internal functions
  */
-time_t GetBootTime(void)
+unsigned long GetBootTime(void)
 {
   char                  Buffer[BUFSIZ];
-  static time_t         btime = 0;
+  static unsigned long  btime = 0;
 
   if (btime > 0) return btime;
   FILE *fp = fopen("/proc/stat", "r");
@@ -109,10 +109,10 @@ time_t GetBootTime(void)
     return 0;
   }
 }
-time_t GetUpTime(void)
+/* unsigned long GetUpTime(void)
 {
   return (time(NULL) - GetBootTime());
-}
+} */
 
 /**
  * show some info how we where called
@@ -424,9 +424,14 @@ int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, bool DoFi
 
 int CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, bool DoFix, bool DeleteOldEntries)
 {
+  unsigned long         curTime;
   int                   NrGiven = *NrInodes, NrFound = 0, NrOk = 0, NrOkSinceBoot = 0, NrFixed = 0;
   int                   ret, return_value = rc_UNKNOWN;
   int                   i, j;
+
+  time(&curTime);
+  if (curTime <= UNIXTIME2010)
+    printf("Warning! Current system time seems to be incorrect: %s", ctime(&curTime));
 
   if (InodeList && (*NrInodes > 0))
   {
@@ -434,7 +439,7 @@ int CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, bool DoF
     {
       for (i = 0; i < *NrInodes; i++)
       {
-printf("%d. InodeNr=%u, LastFixTime=%lu, UpTime=%lu\n", i, InodeList[i].InodeNr, InodeList[i].LastFixTime, GetUpTime());
+printf("%d. InodeNr=%u, LastFixTime=%lu, BootTime=%lu, Now=%lu\n", i, InodeList[i].InodeNr, InodeList[i].LastFixTime, GetBootTime(), curTime);
         ret = CheckInodeByNr(device, InodeList[i].InodeNr, InodeList[i].nblocks_real, InodeList[i].di_size, DoFix);
         setReturnVal(ret);
         if (ret == rc_NOFILEFOUND)
@@ -454,7 +459,7 @@ printf("%d. InodeNr=%u, LastFixTime=%lu, UpTime=%lu\n", i, InodeList[i].InodeNr,
           // Datei ist okay
           NrFound++; NrOk++;
 
-          if((InodeList[i].LastFixTime > 0) && (GetUpTime() < InodeList[i].LastFixTime))
+          if((InodeList[i].LastFixTime > 0) && (InodeList[i].LastFixTime + 1 < GetBootTime()))
           {
             // Datei wurde VOR dem letzten Neustart korrigiert -> lösche aus der Liste
             NrOkSinceBoot++;
@@ -467,6 +472,8 @@ printf("%d. InodeNr=%u, LastFixTime=%lu, UpTime=%lu\n", i, InodeList[i].InodeNr,
             }
             continue;
           }
+          else if (InodeList[i].LastFixTime > 0)
+            continue;  // (neu)
         }
         else
         {
@@ -474,12 +481,13 @@ printf("%d. InodeNr=%u, LastFixTime=%lu, UpTime=%lu\n", i, InodeList[i].InodeNr,
           NrFound++;
           if (ret == rc_ALLFILESFIXED) NrFixed++;
         }
-        InodeList[i].LastFixTime = GetUpTime();
+        if ((curTime > InodeList[i].LastFixTime) && (curTime > UNIXTIME2010))
+          InodeList[i].LastFixTime = curTime;
       }
       close_device(DoFix);
 
-      printf("%u files given, %u found. %u of them ok (%u ok since last reboot), %u were fixed.\n", NrGiven, NrFound, NrOk, NrOkSinceBoot, NrFixed);
-printf("NrInodes = %u\n", *NrInodes);
+      printf("%d files given, %d found. %d of them ok (%d ok since last reboot), %d were fixed.\n", NrGiven, NrFound, NrOk, NrOkSinceBoot, NrFixed);
+printf("NrInodes = %d\n", *NrInodes);
       return return_value;
     }
     else
