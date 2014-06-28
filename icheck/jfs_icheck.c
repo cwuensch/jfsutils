@@ -415,7 +415,6 @@ int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, bool DoFi
     {
       close(fd);
       fprintf(stderr, "Error reading file: \"%s\"\n", filename);
-      fflush(stderr);
       return rc_SOMENOTFIXED;
     }
   }
@@ -542,7 +541,6 @@ int CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool Delete
           fclose(fInodeList);
           free(InodeList);
           fprintf(stderr, "Error! List file could not be fully loaded.\n");
-          fflush(stderr);
           return rc_ERRLISTFILEOPEN;
         }
       }
@@ -550,7 +548,6 @@ int CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool Delete
       {
         fclose(fInodeList);
         fprintf(stderr, "Error! Not enough memory to load the file.\n");
-        fflush(stderr);
         return rc_ERRLISTFILEOPEN;
       }
     }
@@ -580,13 +577,11 @@ int CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool Delete
       {
         setReturnVal(rc_ERRLISTFILEWRT);
         fprintf(stderr, "Error writing the updated inode list to file!\n");
-        fflush(stderr);
       }
       if (fwrite(InodeList, sizeof(tInodeData), NrInodes, fInodeList) != NrInodes)
       {
         setReturnVal(rc_ERRLISTFILEWRT);
         fprintf(stderr, "Error writing the updated inode list to file!\n");
-        fflush(stderr);
       }
       fclose(fInodeList);
     }
@@ -594,7 +589,6 @@ int CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool Delete
     {
       setReturnVal(rc_ERRLISTFILEWRT);
       fprintf(stderr, "Error writing the updated inode list to file!\n");
-      fflush(stderr);
     }
   }
   else if ((NrInodes == 0) && DeleteOldEntries)

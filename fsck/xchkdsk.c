@@ -404,7 +404,7 @@ int main(int argc, char **argv)
 
 phases_complete:
 	fsck_send_msg(mc_FINISHED);
-	if ((mc_NrDefectFiles > 0) && !mc_parmFixWrongnblocks)
+	if ((mc_NrDefectFiles > 0) && !agg_recptr->processing_readonly)
 		agg_recptr->ag_dirty = 1;
 	if (!agg_recptr->superblk_ok) {
 		/* superblock is bad */
