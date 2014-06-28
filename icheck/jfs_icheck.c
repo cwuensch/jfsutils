@@ -59,7 +59,7 @@
 #include "jfs_icheck.h"
 
 #define MY_VERSION  "0.3"
-#define MY_DATE     "2014-06-26"
+#define MY_DATE     "2014-06-28"
 
 #ifdef fsck_BUILD
   #define ick_MAINFUNC() icheck_main
@@ -355,9 +355,9 @@ int CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64
       }
       else
       {
+        ret = rc_NOFILEFOUND;
         if (!opt_quiet)
           printf("--: %s[i=%u] size=%llu, expected %llu (skipping inode)\n", "Inode", InodeNr, cur_inode.di_size, SizeOfFile);
-        ret = rc_NOFILEFOUND;
       }
     }
     else
@@ -365,6 +365,7 @@ int CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64
       printf("Inode not found: %u\n", InodeNr);
       ret = rc_NOFILEFOUND;
     }
+    fflush(stdout);
     if (DeviceOpened) close_device(DoFix);
   }
   else
@@ -414,11 +415,13 @@ int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, bool DoFi
     {
       close(fd);
       fprintf(stderr, "Error reading file: \"%s\"\n", filename);
+      fflush(stderr);
       return rc_SOMENOTFIXED;
     }
   }
 
   printf("File not found: \"%s\"\n", filename);
+  fflush(stdout);
   return rc_NOFILEFOUND;
 }
 
@@ -439,7 +442,7 @@ int CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, bool DoF
     {
       for (i = 0; i < *NrInodes; i++)
       {
-printf("%d. InodeNr=%u, LastFixTime=%lu, BootTime=%lu, Now=%lu\n", i, InodeList[i].InodeNr, InodeList[i].LastFixTime, GetBootTime(), curTime);
+printf("%2d. InodeNr=%u, LastFixTime=%lu, BootTime=%lu, Now=%lu\n", i+1, InodeList[i].InodeNr, InodeList[i].LastFixTime, GetBootTime(), curTime);
         ret = CheckInodeByNr(device, InodeList[i].InodeNr, InodeList[i].nblocks_real, InodeList[i].di_size, DoFix);
         setReturnVal(ret);
         if (ret == rc_NOFILEFOUND)
@@ -487,7 +490,8 @@ printf("%d. InodeNr=%u, LastFixTime=%lu, BootTime=%lu, Now=%lu\n", i, InodeList[
       close_device(DoFix);
 
       printf("%d files given, %d found. %d of them ok (%d ok since last reboot), %d were fixed.\n", NrGiven, NrFound, NrOk, NrOkSinceBoot, NrFixed);
-printf("NrInodes = %d\n", *NrInodes);
+      fflush(stdout);
+//printf("NrInodes = %d\n", *NrInodes);
       return return_value;
     }
     else
@@ -496,6 +500,7 @@ printf("NrInodes = %d\n", *NrInodes);
   else
   {
     printf("No files specified!\n");
+    fflush(stdout);
     return rc_ALLFILESOKAY;
   }
 }
@@ -534,9 +539,10 @@ int CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool Delete
           return_value = CheckInodeList(device, InodeList, &NrInodes, DoFix, DeleteOldEntries);
         else
         {
-          fprintf(stderr, "Error! List file could not be fully loaded.\n");
           fclose(fInodeList);
           free(InodeList);
+          fprintf(stderr, "Error! List file could not be fully loaded.\n");
+          fflush(stderr);
           return rc_ERRLISTFILEOPEN;
         }
       }
@@ -544,6 +550,7 @@ int CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool Delete
       {
         fclose(fInodeList);
         fprintf(stderr, "Error! Not enough memory to load the file.\n");
+        fflush(stderr);
         return rc_ERRLISTFILEOPEN;
       }
     }
@@ -551,12 +558,14 @@ int CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool Delete
     {
       fclose(fInodeList);
       printf("Invalid list file header: \"%s\".\n", ListFileName);
+      fflush(stdout);
       return rc_ERRLISTFILEOPEN;
     }
   }
   else
   {
     printf("List file not found: \"%s\".\n", ListFileName);
+    fflush(stdout);
     return rc_ERRLISTFILEOPEN;
   }
 
@@ -569,20 +578,23 @@ int CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool Delete
       InodeListHeader.FileSize  = (NrInodes * sizeof(tInodeData)) + sizeof(tInodeListHeader);
       if (!fwrite(&InodeListHeader, sizeof(tInodeListHeader), 1, fInodeList))
       {
-        fprintf(stderr, "Error writing the updated inode list to file!\n");
         setReturnVal(rc_ERRLISTFILEWRT);
+        fprintf(stderr, "Error writing the updated inode list to file!\n");
+        fflush(stderr);
       }
       if (fwrite(InodeList, sizeof(tInodeData), NrInodes, fInodeList) != NrInodes)
       {
-        fprintf(stderr, "Error writing the updated inode list to file!\n");
         setReturnVal(rc_ERRLISTFILEWRT);
+        fprintf(stderr, "Error writing the updated inode list to file!\n");
+        fflush(stderr);
       }
       fclose(fInodeList);
     }
     else
     {
-      fprintf(stderr, "Error writing the updated inode list to file!\n");
       setReturnVal(rc_ERRLISTFILEWRT);
+      fprintf(stderr, "Error writing the updated inode list to file!\n");
+      fflush(stderr);
     }
   }
   else if ((NrInodes == 0) && DeleteOldEntries)

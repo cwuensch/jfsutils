@@ -383,7 +383,7 @@ int main(int argc, char **argv)
 //	fflush(stdout);
 	if (agg_recptr->fsck_is_done || mc_parmFirstStepsOnly || (mc_NrDefectFiles > 0 && mc_parmFixWrongnblocks))
 		goto phases_complete;
-	if (mc_NrDefectFiles > 0 && !agg_recptr->processing_readonly)
+	if ((mc_NrDefectFiles > 0) && !agg_recptr->processing_readonly)
 	{
 		fsck_send_msg(mc_CHECKABORTED);
 		goto phases_complete;
@@ -404,6 +404,8 @@ int main(int argc, char **argv)
 
 phases_complete:
 	fsck_send_msg(mc_FINISHED);
+	if ((mc_NrDefectFiles > 0) && !mc_parmFixWrongnblocks)
+		agg_recptr->ag_dirty = 1;
 	if (!agg_recptr->superblk_ok) {
 		/* superblock is bad */
 		exit_value = FSCK_ERRORS_UNCORRECTED;
