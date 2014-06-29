@@ -81,11 +81,11 @@ typedef struct
   extern int64_t AIT_2nd_offset;   /* Used by find_iag routines */
 
   /* Global Functions */
-  tReturnCode jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t RealBlocks, bool UseInodeNums, bool DoFix);
+  tReturnCode jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t RealBlocks, bool UseInodeNums, bool DoFix, char *LogFileName);
   tReturnCode CheckInodeByName(char *device, char *filename, int64_t RealBlocks, bool DoFix);
   tReturnCode CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64_t *SizeOfFile, bool DoFix);
   tReturnCode CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, bool DoFix, bool DeleteOldEntries);
-  tReturnCode CheckInodeListFile(char *device, char *ListFileName, char *AddInodes[], int NrAddInodes, bool DoFix, bool DeleteOldEntries);
+  tReturnCode CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool DeleteOldEntries);
 #endif
 
 #endif
