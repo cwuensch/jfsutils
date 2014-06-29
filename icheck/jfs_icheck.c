@@ -605,7 +605,7 @@ tReturnCode CheckInodeListFile(char *device, char *ListFileName, char *AddInodes
     if(fInodeList)
     {
       strcpy(InodeListHeader.Magic, "TFinos");
-      InodeListHeader.Version == 1;
+      InodeListHeader.Version   = 1;
       InodeListHeader.NrEntries = NrInodes;
       InodeListHeader.FileSize  = (NrInodes * sizeof(tInodeData)) + sizeof(tInodeListHeader);
       if (!fwrite(&InodeListHeader, sizeof(tInodeListHeader), 1, fInodeList))
