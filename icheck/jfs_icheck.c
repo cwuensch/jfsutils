@@ -294,7 +294,7 @@ int64_t calc_realblocks()
 }
 
 
-int CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64_t *SizeOfFile, bool DoFix)
+tReturnCode CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64_t *SizeOfFile, bool DoFix)
 {
   bool                  tolerance_mode = FALSE;
   tReturnCode           ret = rc_UNKNOWN;
@@ -375,7 +375,7 @@ int CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64
   return(ret);
 }
 
-int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, bool DoFix)
+tReturnCode CheckInodeByName(char *device, char *filename, int64_t RealBlocks, bool DoFix)
 {
   struct stat           st;
   int                   fd;
@@ -427,11 +427,11 @@ int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, bool DoFi
 }
 
 
-int CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, bool DoFix, bool DeleteOldEntries)
+tReturnCode CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, bool DoFix, bool DeleteOldEntries)
 {
   unsigned long         curTime;
   int                   NrGiven = *NrInodes, NrFound = 0, NrOk = 0, NrOkSinceBoot = 0, NrFixed = 0;
-  int                   ret, return_value = rc_UNKNOWN;
+  tReturnCode           ret, return_value = rc_UNKNOWN;
   int                   i, j;
 
   time(&curTime);
@@ -507,7 +507,7 @@ printf("%2d. InodeNr=%u, LastFixTime=%lu, BootTime=%lu, Now=%lu\n", i+1, InodeLi
   }
 }
 
-int CheckInodeListFile(char *device, char *ListFileName, char *AddInodes[], int NrAddInodes, bool DoFix, bool DeleteOldEntries)
+tReturnCode CheckInodeListFile(char *device, char *ListFileName, char *AddInodes[], int NrAddInodes, bool DoFix, bool DeleteOldEntries)
 {
   tInodeListHeader      InodeListHeader;
   tInodeData           *InodeList  = NULL;
@@ -515,7 +515,7 @@ int CheckInodeListFile(char *device, char *ListFileName, char *AddInodes[], int 
   long                  fs = 0;
   unsigned int          curInodeNr;
   int                   NrInodes = 0;
-  int                   return_value = rc_UNKNOWN;
+  tReturnCode           return_value = rc_UNKNOWN;
 
   InodeListHeader.NrEntries = 0;
 
@@ -634,9 +634,9 @@ int CheckInodeListFile(char *device, char *ListFileName, char *AddInodes[], int 
 }
 
 
-int jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t RealBlocks, bool UseInodeNums, bool DoFix)
+tReturnCode jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t RealBlocks, bool UseInodeNums, bool DoFix)
 {
-  int ret, return_value = rc_UNKNOWN;
+  tReturnCode           ret, return_value = rc_UNKNOWN;
 
   if (open_device(device))
   {
@@ -665,7 +665,7 @@ int ick_MAINFUNC()(int argc, char *argv[])
   bool                  opt_realsize         = FALSE;
   char                  opt_listfile[512];     opt_listfile[0] = '\0';
   bool                  opt_deleteoldentries = FALSE;
-  int                   return_value         = rc_UNKNOWN;
+  tReturnCode           return_value         = rc_UNKNOWN;
 
   while ((opt = getopt(argc, argv, "ib:l:L:tcfqh?")) != -1) {
     switch (opt) {
