@@ -57,7 +57,7 @@ typedef struct
 {
   char Magic            [6];  // TFinos
   short                 Version;
-  unsigned long         NrEntries;
+  int                   NrEntries;
   unsigned long         FileSize;
 } tInodeListHeader;
 
@@ -83,9 +83,9 @@ typedef struct
   /* Global Functions */
   int jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t RealBlocks, bool UseInodeNums, bool DoFix);
   int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, bool DoFix);
-  int CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64_t SizeOfFile, bool DoFix);
+  int CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64_t *SizeOfFile, bool DoFix);
   int CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, bool DoFix, bool DeleteOldEntries);
-  int CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool DeleteOldEntries);
+  int CheckInodeListFile(char *device, char *ListFileName, char *AddInodes[], int NrAddInodes, bool DoFix, bool DeleteOldEntries);
 #endif
 
 #endif

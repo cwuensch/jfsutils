@@ -58,8 +58,8 @@
 #include "lib.h"
 #include "jfs_icheck.h"
 
-#define MY_VERSION  "0.3"
-#define MY_DATE     "2014-06-28"
+#define MY_VERSION  "0.3a"
+#define MY_DATE     "2014-06-30"
 
 #ifdef fsck_BUILD
   #define ick_MAINFUNC() icheck_main
@@ -294,7 +294,7 @@ int64_t calc_realblocks()
 }
 
 
-int CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64_t SizeOfFile, bool DoFix)
+int CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64_t *SizeOfFile, bool DoFix)
 {
   bool                  tolerance_mode = FALSE;
   tReturnCode           ret = rc_UNKNOWN;
@@ -306,8 +306,10 @@ int CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64
     if (read_inode(InodeNr))
     {
       // Dateigröße mit der übergebenen vergleichen
-      if ((SizeOfFile == 0) || (cur_inode.di_size == SizeOfFile))
+      if ((SizeOfFile == NULL) || (*SizeOfFile == 0) || (cur_inode.di_size == *SizeOfFile))
       {
+        if ((SizeOfFile) && (*SizeOfFile == 0)) *SizeOfFile = cur_inode.di_size;
+
         // tatsächliche Blockanzahl berechnen
         if (RealBlocks == 0)
         {
@@ -357,7 +359,7 @@ int CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64
       {
         ret = rc_NOFILEFOUND;
         if (!opt_quiet)
-          printf("--: %s[i=%u] size=%llu, expected %llu (skipping inode)\n", "Inode", InodeNr, cur_inode.di_size, SizeOfFile);
+          printf("--: %s[i=%u] size=%llu, expected %llu (skipping inode)\n", "Inode", InodeNr, cur_inode.di_size, *SizeOfFile);
       }
     }
     else
@@ -409,7 +411,7 @@ int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, bool DoFi
       }
       close(fd);
 
-      return (CheckInodeByNr(device, st.st_ino, RealBlocks, 0, DoFix));
+      return (CheckInodeByNr(device, st.st_ino, RealBlocks, NULL, DoFix));
     }
     else
     {
@@ -423,6 +425,7 @@ int CheckInodeByName(char *device, char *filename, int64_t RealBlocks, bool DoFi
   fflush(stdout);
   return rc_NOFILEFOUND;
 }
+
 
 int CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, bool DoFix, bool DeleteOldEntries)
 {
@@ -442,7 +445,7 @@ int CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, bool DoF
       for (i = 0; i < *NrInodes; i++)
       {
 printf("%2d. InodeNr=%u, LastFixTime=%lu, BootTime=%lu, Now=%lu\n", i+1, InodeList[i].InodeNr, InodeList[i].LastFixTime, GetBootTime(), curTime);
-        ret = CheckInodeByNr(device, InodeList[i].InodeNr, InodeList[i].nblocks_real, InodeList[i].di_size, DoFix);
+        ret = CheckInodeByNr(device, InodeList[i].InodeNr, InodeList[i].nblocks_real, &InodeList[i].di_size, DoFix);
         setReturnVal(ret);
         if (ret == rc_NOFILEFOUND)
         {
@@ -504,14 +507,17 @@ printf("%2d. InodeNr=%u, LastFixTime=%lu, BootTime=%lu, Now=%lu\n", i+1, InodeLi
   }
 }
 
-int CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool DeleteOldEntries)
+int CheckInodeListFile(char *device, char *ListFileName, char *AddInodes[], int NrAddInodes, bool DoFix, bool DeleteOldEntries)
 {
   tInodeListHeader      InodeListHeader;
   tInodeData           *InodeList  = NULL;
   FILE                 *fInodeList = NULL;
   long                  fs = 0;
+  unsigned int          curInodeNr;
   int                   NrInodes = 0;
   int                   return_value = rc_UNKNOWN;
+
+  InodeListHeader.NrEntries = 0;
 
   fInodeList = fopen(ListFileName, "rb");
   if(fInodeList)
@@ -522,36 +528,11 @@ int CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool Delete
     rewind(fInodeList);
 
     // Header prüfen
-    if ( (fread(&InodeListHeader, sizeof(tInodeListHeader), 1, fInodeList))
-      && (strncmp(InodeListHeader.Magic, "TFinos", 6) == 0)
-      && (InodeListHeader.Version == 1)
-      && (InodeListHeader.FileSize == fs)
-      && (InodeListHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fs))
-    {
-      InodeList = (tInodeData*) malloc(InodeListHeader.NrEntries * sizeof(tInodeData));
-      if (InodeList)
-      {
-        NrInodes = fread(InodeList, sizeof(tInodeData), InodeListHeader.NrEntries, fInodeList);
-        fclose(fInodeList);
-
-        if (NrInodes == InodeListHeader.NrEntries)
-          return_value = CheckInodeList(device, InodeList, &NrInodes, DoFix, DeleteOldEntries);
-        else
-        {
-          fclose(fInodeList);
-          free(InodeList);
-          fprintf(stderr, "Error! List file could not be fully loaded.\n");
-          return rc_ERRLISTFILEOPEN;
-        }
-      }
-      else
-      {
-        fclose(fInodeList);
-        fprintf(stderr, "Error! Not enough memory to load the file.\n");
-        return rc_ERRLISTFILEOPEN;
-      }
-    }
-    else
+    if (!( (fread(&InodeListHeader, sizeof(tInodeListHeader), 1, fInodeList))
+        && (strncmp(InodeListHeader.Magic, "TFinos", 6) == 0)
+        && (InodeListHeader.Version == 1)
+        && (InodeListHeader.FileSize == fs)
+        && (InodeListHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fs)))
     {
       fclose(fInodeList);
       printf("Invalid list file header: \"%s\".\n", ListFileName);
@@ -559,18 +540,72 @@ int CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool Delete
       return rc_ERRLISTFILEOPEN;
     }
   }
-  else
+
+  // Fehler: Es existiert keine Liste und keine zusätzlichen Files
+  if(!fInodeList && (NrAddInodes == 0))
   {
     printf("List file not found: \"%s\".\n", ListFileName);
     fflush(stdout);
     return rc_ERRLISTFILEOPEN;
   }
 
+  // Puffer allozieren
+  InodeList = (tInodeData*) malloc((InodeListHeader.NrEntries + NrAddInodes) * sizeof(tInodeData));
+  if(!InodeList)
+  {
+    if(fInodeList) fclose(fInodeList);
+    fprintf(stderr, "Error! Not enough memory to load the file.\n");
+    return rc_ERRLISTFILEOPEN;
+  }
+
+  // ListFile einlesen und schließen
+  if(fInodeList)
+  {
+    NrInodes = fread(InodeList, sizeof(tInodeData), InodeListHeader.NrEntries, fInodeList);
+    fclose(fInodeList);
+
+    if (NrInodes != InodeListHeader.NrEntries)
+    {
+      fclose(fInodeList);
+      free(InodeList);
+      fprintf(stderr, "Error! List file could not be fully loaded.\n");
+      return rc_ERRLISTFILEOPEN;
+    }
+  }
+
+  // zusätzliche Inodes in die Liste eintragen
+  int i, j;
+  for (i = 0; i < NrAddInodes; i++)
+  {
+    curInodeNr = strtoul(AddInodes[i], NULL, 10);
+    if (curInodeNr != 0)
+    {
+      for (j = 0; j < NrInodes; j++)
+        if (curInodeNr == InodeList[j].InodeNr) break;
+      if (j == NrInodes)
+      {
+        InodeList[NrInodes].InodeNr = curInodeNr;
+        InodeList[NrInodes].di_size = 0;
+        InodeList[NrInodes].nblocks_real = 0;
+        InodeList[NrInodes].nblocks_wrong = 0;
+        InodeList[NrInodes].FileName[0] = '\0';
+        InodeList[NrInodes].LastFixTime = 0;
+        NrInodes++;
+      }
+    }
+  }
+
+  // Inode-Daten überprüfen
+  return_value = CheckInodeList(device, InodeList, &NrInodes, DoFix, DeleteOldEntries);
+
+  // Inode-Liste neu schreiben
   if(InodeList && (NrInodes > 0) /*&& (DoFix || DeleteOldEntries)*/)
   {
     fInodeList = fopen(ListFileName, "wb");
     if(fInodeList)
     {
+      strcpy(InodeListHeader.Magic, "TFinos");
+      InodeListHeader.Version == 1;
       InodeListHeader.NrEntries = NrInodes;
       InodeListHeader.FileSize  = (NrInodes * sizeof(tInodeData)) + sizeof(tInodeListHeader);
       if (!fwrite(&InodeListHeader, sizeof(tInodeListHeader), 1, fInodeList))
@@ -609,7 +644,7 @@ int jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t RealBlocks,
     int i;
     for (i = 0; i < NrFiles; i++) {
       if(UseInodeNums)
-        ret = CheckInodeByNr(device, strtoul(filenames[i], NULL, 10), RealBlocks, FALSE, DoFix);
+        ret = CheckInodeByNr(device, strtoul(filenames[i], NULL, 10), RealBlocks, NULL, DoFix);
       else
         ret = CheckInodeByName(device, filenames[i], RealBlocks, DoFix);
       setReturnVal(ret);
@@ -688,6 +723,16 @@ int ick_MAINFUNC()(int argc, char *argv[])
     return rc_NOFILEFOUND;
   }
 
+  if (opt_usefibmap && opt_useinodenums)
+  {
+    printf("Options -i and -c cannot be combined!\n");
+    return rc_NOFILEFOUND;
+  }  
+  if (opt_listfile[0] && (argc > optind + 1) && !opt_useinodenums)
+  {
+    printf("When using a list file, additional inodes must be specified by numbers (-i)!\n");
+    return rc_NOFILEFOUND;
+  }  
 
 // *** kaputtmachen ***
 // VOR dem icheck war die Datei auf jeden Fall geöffnet, und wurde bearbeitet
@@ -704,13 +749,13 @@ if (f)
 
 
   if(opt_listfile[0])
-    return_value = CheckInodeListFile(argv[optind], opt_listfile, opt_fixinode, opt_deleteoldentries);
+    return_value = CheckInodeListFile(argv[optind], opt_listfile, &argv[optind+1], ((opt_useinodenums) ? argc - optind - 1 : 0), opt_fixinode, opt_deleteoldentries);
   else /* if(!opt_realsize) */
-    return_value = jfs_icheck(argv[optind], &argv[optind+1], argc - optind - 1, opt_realsize, opt_useinodenums, opt_fixinode);
+    return_value = jfs_icheck(argv[optind], &argv[optind+1], (argc - optind - 1), opt_realsize, opt_useinodenums, opt_fixinode);
 /*  else
   {
     if(opt_useinodenums)
-      CheckInodeByNr(argv[optind], strtoul(argv[optind+1], NULL, 10), opt_realsize, 0, opt_fixinode);
+      CheckInodeByNr(argv[optind], strtoul(argv[optind+1], NULL, 10), opt_realsize, NULL, opt_fixinode);
     else
       CheckInodeByName(argv[optind], argv[optind+1], opt_realsize, opt_fixinode);
   } */
