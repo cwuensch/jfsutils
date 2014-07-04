@@ -466,6 +466,83 @@ tReturnCode CheckInodeByName(char *device, char *filename, int64_t RealBlocks, b
 }
 
 
+tInodeData* ReadListFileAlloc(const char *AbsListFileName, int *OutNrInodes, int AddEntries)
+{
+  tInodeListHeader      InodeListHeader;
+  tInodeData           *InodeList  = NULL;
+  FILE                 *fInodeList = NULL;
+  int                   NrInodes = 0;
+  unsigned long         fs = 0;
+
+  InodeListHeader.NrEntries = 0;
+  
+  fInodeList = fopen(AbsListFileName, "rb");
+  if(fInodeList)
+  {
+    // Dateigröße bestimmen um Puffer zu allozieren
+    fseek(fInodeList, 0, SEEK_END);
+    fs = ftell(fInodeList);
+    rewind(fInodeList);
+
+    // Header prüfen
+    if (!( (fread(&InodeListHeader, sizeof(tInodeListHeader), 1, fInodeList))
+        && (strncmp(InodeListHeader.Magic, "TFinos", 6) == 0)
+        && (InodeListHeader.Version == 1)
+        && (InodeListHeader.FileSize == fs)
+        && (InodeListHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fs)))
+    {
+      fclose(fInodeList);
+      fprintf(stderr, "Invalid list file header!\n");
+      return NULL;
+    }
+  }
+  if(OutNrInodes) *OutNrInodes = InodeListHeader.NrEntries;
+
+  // Puffer allozieren
+  InodeList = (tInodeData*) malloc((InodeListHeader.NrEntries + AddEntries) * sizeof(tInodeData));
+  if (InodeList && fInodeList)
+  {
+    NrInodes = fread(InodeList, sizeof(tInodeData), InodeListHeader.NrEntries, fInodeList);
+    if (NrInodes != InodeListHeader.NrEntries)
+    {
+      fclose(fInodeList);
+      free(InodeList);
+      fprintf(stderr, "Error! Unexpected end of list file.\n");
+      return NULL;
+    }
+  }
+  if(fInodeList) fclose(fInodeList);
+
+  if (!InodeList)
+    fprintf(stderr, "Error! Not enough memory to store the list file.\n");
+  return InodeList;
+}
+
+bool WriteListFile(const char *AbsListFileName, const tInodeData InodeList[], const int NrInodes)
+{
+  tInodeListHeader      InodeListHeader;
+  FILE                 *fInodeList = NULL;
+  bool                  ret = FALSE;
+
+  fInodeList = fopen(AbsListFileName, "wb");
+  if(fInodeList)
+  {
+    strcpy(InodeListHeader.Magic, "TFinos");
+    InodeListHeader.Version   = 1;
+    InodeListHeader.NrEntries = NrInodes;
+    InodeListHeader.FileSize  = (NrInodes * sizeof(tInodeData)) + sizeof(tInodeListHeader);
+
+    if (fwrite(&InodeListHeader, sizeof(tInodeListHeader), 1, fInodeList))
+    {
+      if (fwrite(InodeList, sizeof(tInodeData), NrInodes, fInodeList) == (size_t) NrInodes)
+        ret = TRUE;
+    }
+    fclose(fInodeList);
+  }
+  return ret;
+}
+
+
 tReturnCode CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, bool DoFix, bool DeleteOldEntries)
 {
   unsigned long         curTime;
@@ -546,91 +623,29 @@ printf("%2d. InodeNr=%u, LastFixTime=%lu, BootTime=%lu, Now=%lu\n", i+1, InodeLi
   }
 }
 
+
 tReturnCode CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool DeleteOldEntries)
 {
-  tInodeListHeader      InodeListHeader;
   tInodeData           *InodeList  = NULL;
-  FILE                 *fInodeList = NULL;
-  long                  fs = 0;
   int                   NrInodes = 0;
   tReturnCode           return_value = rc_UNKNOWN;
 
-  fInodeList = fopen(ListFileName, "rb");
-  if(fInodeList)
+  InodeList = ReadListFileAlloc(ListFileName, &NrInodes, 0);
+  if(!InodeList)
   {
-    // Dateigröße bestimmen um Puffer zu allozieren
-    fseek(fInodeList, 0, SEEK_END);
-    fs = ftell(fInodeList);
-    rewind(fInodeList);
-
-    // Header prüfen
-    if ( (fread(&InodeListHeader, sizeof(tInodeListHeader), 1, fInodeList))
-      && (strncmp(InodeListHeader.Magic, "TFinos", 6) == 0)
-      && (InodeListHeader.Version == 1)
-      && (InodeListHeader.FileSize == fs)
-      && (InodeListHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fs))
-    {
-      InodeList = (tInodeData*) malloc(InodeListHeader.NrEntries * sizeof(tInodeData));
-      if (InodeList)
-      {
-        NrInodes = fread(InodeList, sizeof(tInodeData), InodeListHeader.NrEntries, fInodeList);
-        fclose(fInodeList);
-
-        if (NrInodes == InodeListHeader.NrEntries)
-          return_value = CheckInodeList(device, InodeList, &NrInodes, DoFix, DeleteOldEntries);
-        else
-        {
-          fclose(fInodeList);
-          free(InodeList);
-          fprintf(stderr, "Error! List file could not be fully loaded.\n");
-          return rc_ERRLISTFILEOPEN;
-        }
-      }
-      else
-      {
-        fclose(fInodeList);
-        fprintf(stderr, "Error! Not enough memory to load the file.\n");
-        return rc_ERRLISTFILEOPEN;
-      }
-    }
-    else
-    {
-      fclose(fInodeList);
-      printf("Invalid list file header: \"%s\".\n", ListFileName);
-      fflush(stdout);
-      return rc_ERRLISTFILEOPEN;
-    }
-  }
-  else
-  {
-    printf("List file not found: \"%s\".\n", ListFileName);
+    printf("List file could not be loaded: \"%s\".\n", ListFileName);
     fflush(stdout);
     return rc_ERRLISTFILEOPEN;
   }
+ 
+  return_value = CheckInodeList(device, InodeList, &NrInodes, DoFix, DeleteOldEntries);
 
   if(InodeList && (NrInodes > 0) /*&& (DoFix || DeleteOldEntries)*/)
   {
-    fInodeList = fopen(ListFileName, "wb");
-    if(fInodeList)
+    if (!WriteListFile(ListFileName, InodeList, NrInodes))
     {
-      InodeListHeader.NrEntries = NrInodes;
-      InodeListHeader.FileSize  = (NrInodes * sizeof(tInodeData)) + sizeof(tInodeListHeader);
-      if (!fwrite(&InodeListHeader, sizeof(tInodeListHeader), 1, fInodeList))
-      {
-        setReturnVal(rc_ERRLISTFILEWRT);
-        fprintf(stderr, "Error writing the updated inode list to file!\n");
-      }
-      if (fwrite(InodeList, sizeof(tInodeData), NrInodes, fInodeList) != NrInodes)
-      {
-        setReturnVal(rc_ERRLISTFILEWRT);
-        fprintf(stderr, "Error writing the updated inode list to file!\n");
-      }
-      fclose(fInodeList);
-    }
-    else
-    {
+      fprintf(stderr, "Error writing the inode list data to file!\n");
       setReturnVal(rc_ERRLISTFILEWRT);
-      fprintf(stderr, "Error writing the updated inode list to file!\n");
     }
   }
   else if ((NrInodes == 0) && DeleteOldEntries)
@@ -643,10 +658,9 @@ tReturnCode CheckInodeListFile(char *device, char *ListFileName, bool DoFix, boo
 
 tReturnCode jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t RealBlocks, bool UseInodeNums, bool DoFix, char *LogFileName)
 {
-  tInodeListHeader      InodeLogHeader;
-  FILE                 *fInodeLog = NULL;
-  long                  fs = 0;
   tReturnCode           ret, return_value = rc_UNKNOWN;
+
+  InodeLog = NULL;
 
   // bisheriges Logfile einlesen
   if (LogFileName && LogFileName[0])
@@ -655,54 +669,11 @@ tReturnCode jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t Rea
     if (curTime <= UNIXTIME2010)
       printf("Warning! Current system time seems to be incorrect: %s", ctime(&curTime));
     
-    InodeLogHeader.NrEntries = 0;
-    fInodeLog = fopen(LogFileName, "rb");
-    if(fInodeLog)
-    {
+    InodeLog = ReadListFileAlloc(LogFileName, &NrLogEntries, NrFiles);
+    if(InodeLog)
       printf("Additional files specified - contents of Listfile will not be processed!\n");
-
-      // Dateigröße bestimmen um Puffer zu allozieren
-      fseek(fInodeLog, 0, SEEK_END);
-      fs = ftell(fInodeLog);
-      rewind(fInodeLog);
-
-      // Header prüfen
-      if (!( (fread(&InodeLogHeader, sizeof(tInodeListHeader), 1, fInodeLog))
-          && (strncmp(InodeLogHeader.Magic, "TFinos", 6) == 0)
-          && (InodeLogHeader.Version == 1)
-          && (InodeLogHeader.FileSize == fs)
-          && (InodeLogHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fs)))
-      {
-        fclose(fInodeLog);
-        printf("Invalid list file header: \"%s\".\n", LogFileName);
-        fflush(stdout);
-        return rc_ERRLISTFILEOPEN;
-      }
-    }
-
-    // Puffer allozieren
-    InodeLog = (tInodeData*) malloc((InodeLogHeader.NrEntries + NrFiles) * sizeof(tInodeData));
-    if (InodeLog && fInodeLog)
-    {
-      NrLogEntries = fread(InodeLog, sizeof(tInodeData), InodeLogHeader.NrEntries, fInodeLog);
-
-      if (NrLogEntries != InodeLogHeader.NrEntries)
-      {
-        fclose(fInodeLog);
-        free(InodeLog);
-        fprintf(stderr, "Error! Present list file could not be fully loaded.\n");
-        return rc_ERRLISTFILEOPEN;
-      }
-      fclose(fInodeLog);
-    }
     else
-      InodeLog = (tInodeData*) malloc(NrFiles * sizeof(tInodeData));
-
-    if (!InodeLog)
-    {
-      fprintf(stderr, "Error! Not enough memory to create the log file.\n");
       return rc_ERRLISTFILEOPEN;
-    }
   }
 
   // eigentlicher Check
@@ -725,33 +696,11 @@ tReturnCode jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t Rea
   // neues Logfile ausgeben
   if (LogFileName && LogFileName[0] && InodeLog && (NrLogEntries > 0))
   {
-    fInodeLog = fopen(LogFileName, "wb");
-    if(fInodeLog)
-    {
-      strcpy(InodeLogHeader.Magic, "TFinos");
-      InodeLogHeader.Version   = 1;
-      InodeLogHeader.NrEntries = NrLogEntries;
-      InodeLogHeader.FileSize  = (NrLogEntries * sizeof(tInodeData)) + sizeof(tInodeListHeader);
-      if (!fwrite(&InodeLogHeader, sizeof(tInodeListHeader), 1, fInodeLog))
-      {
-        setReturnVal(rc_ERRLISTFILEWRT);
-        fprintf(stderr, "Error writing the log data to file!\n");
-      }
-      if (fwrite(InodeLog, sizeof(tInodeData), NrLogEntries, fInodeLog) != NrLogEntries)
-      {
-        setReturnVal(rc_ERRLISTFILEWRT);
-        fprintf(stderr, "Error writing the log data to file!\n");
-      }
-      fclose(fInodeLog);
-    }
-    else
-    {
-      setReturnVal(rc_ERRLISTFILEWRT);
+    if(!WriteListFile(LogFileName, InodeLog, NrLogEntries))
       fprintf(stderr, "Error writing the log data to file!\n");
-    }
-    free(InodeLog);
   }
 
+  free(InodeLog);
   return return_value;
 }
 

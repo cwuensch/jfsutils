@@ -7,6 +7,9 @@ set PATH=%TFROOT%\gccForTMS\crosstool\bin;%TFROOT%\gccForTMS\crosstool\mipsel-li
 set CFLAGS=-pipe -Os -static
 set LDFLAGS=-static
 rem bash ../configure --host=mipsel-linux-uclibc
+rem copy /y ..\fsck_Makefile fsck\Makefile
+copy /y ..\icheck\*.h ..\fsck\
+copy /y ..\icheck\*.c ..\fsck\
 make
 copy /y fsck\jfs_fsck ..\.. > nul
 pause

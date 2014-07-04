@@ -555,22 +555,7 @@ phases_complete:
 
 	if(mc_parmListFile[0])
 	{
-		FILE *lf = fopen(mc_parmListFile, "wb");
-		if(lf)
-		{
-			tInodeListHeader mc_InodeListHeader;
-			strcpy(mc_InodeListHeader.Magic, "TFinos");
-			mc_InodeListHeader.Version = 1;
-			mc_InodeListHeader.NrEntries = mc_NrMarkedFiles;
-			mc_InodeListHeader.FileSize  = (mc_NrMarkedFiles * sizeof(tInodeData)) + sizeof(tInodeListHeader);
-			if(!fwrite(&mc_InodeListHeader, sizeof(tInodeListHeader), 1, lf))
-				fprintf(stdout, msg_defs[mc_LISTWRITEERROR].msg_txt, mc_parmListFile);
-
-			if(fwrite(mc_MarkedFiles, sizeof(tInodeData), mc_NrMarkedFiles, lf) != mc_NrMarkedFiles)
-				fprintf(stdout, msg_defs[mc_LISTWRITEERROR].msg_txt, mc_parmListFile);
-			fclose(lf);
-		}
-		else
+		if (!WriteListFile(mc_parmListFile, mc_MarkedFiles, mc_NrMarkedFiles))
 			fprintf(stdout, msg_defs[mc_LISTWRITEERROR].msg_txt, mc_parmListFile);
 	}
     

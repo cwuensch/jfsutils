@@ -86,6 +86,8 @@ typedef struct
   tReturnCode CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64_t *SizeOfFile, bool DoFix);
   tReturnCode CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, bool DoFix, bool DeleteOldEntries);
   tReturnCode CheckInodeListFile(char *device, char *ListFileName, bool DoFix, bool DeleteOldEntries);
+  tInodeData* ReadListFileAlloc(const char *ListFileName, int *OutNrInodes, int AddEntries);
+  bool        WriteListFile(const char *ListFileName, const tInodeData InodeList[], const int NrInodes);
 #endif
 
 #endif
