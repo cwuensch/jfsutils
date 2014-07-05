@@ -59,7 +59,7 @@
 #include "jfs_icheck.h"
 
 #define MY_VERSION  "0.3b"
-#define MY_DATE     "2014-06-30"
+#define MY_DATE     "2014-07-05"
 
 #ifdef fsck_BUILD
   #define ick_MAINFUNC() icheck_main
@@ -79,9 +79,9 @@ int64_t                 AIT_2nd_offset;      /* Used by find_iag routines    */
 struct                  dinode cur_inode;
 int64_t                 cur_address;
 
-unsigned long           curTime;
 tInodeData             *InodeLog = NULL;
 int                     NrLogEntries = 0;
+unsigned long           curUpTime = 0;
 
 /* global values for our options */
 bool opt_tolerance   =  TRUE;
@@ -113,10 +113,10 @@ unsigned long GetBootTime(void)
     return 0;
   }
 }
-/* unsigned long GetUpTime(void)
+unsigned long GetUpTime(void)
 {
   return (time(NULL) - GetBootTime());
-} */
+}
 
 /**
  * show some info how we where called
@@ -371,7 +371,7 @@ tReturnCode CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlock
             InodeLog[i].nblocks_real  = 0;
             InodeLog[i].nblocks_wrong = cur_blks;
             InodeLog[i].FileName[0]   = '\0';
-            InodeLog[i].LastFixTime   = (curTime > UNIXTIME2010) ? curTime : 0;
+            InodeLog[i].LastFixTime   = curUpTime;
             if (i == NrLogEntries) NrLogEntries++;
           }
         }
@@ -545,14 +545,12 @@ bool WriteListFile(const char *AbsListFileName, const tInodeData InodeList[], co
 
 tReturnCode CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, bool DoFix, bool DeleteOldEntries)
 {
-  unsigned long         curTime;
+  unsigned long         curUpTime;
   int                   NrGiven = *NrInodes, NrFound = 0, NrOk = 0, NrOkSinceBoot = 0, NrFixed = 0;
   tReturnCode           ret, return_value = rc_UNKNOWN;
   int                   i, j;
 
-  time(&curTime);
-  if (curTime <= UNIXTIME2010)
-    printf("Warning! Current system time seems to be incorrect: %s", ctime(&curTime));
+  curUpTime = GetUpTime();
 
   if (InodeList && (*NrInodes > 0))
   {
@@ -560,7 +558,7 @@ tReturnCode CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, 
     {
       for (i = 0; i < *NrInodes; i++)
       {
-printf("%2d. InodeNr=%u, LastFixTime=%lu, BootTime=%lu, Now=%lu\n", i+1, InodeList[i].InodeNr, InodeList[i].LastFixTime, GetBootTime(), curTime);
+printf("%2d. InodeNr=%u, LastFixTime=%lu, UpTime=%lu\n", i+1, InodeList[i].InodeNr, InodeList[i].LastFixTime, curUpTime);
         ret = CheckInodeByNr(device, InodeList[i].InodeNr, InodeList[i].nblocks_real, &InodeList[i].di_size, DoFix);
         setReturnVal(ret);
         if (ret == rc_NOFILEFOUND)
@@ -580,7 +578,7 @@ printf("%2d. InodeNr=%u, LastFixTime=%lu, BootTime=%lu, Now=%lu\n", i+1, InodeLi
           // Datei ist okay
           NrFound++; NrOk++;
 
-          if((InodeList[i].LastFixTime > 0) && (InodeList[i].LastFixTime + 1 < GetBootTime()))
+          if((InodeList[i].LastFixTime > 0) && (curUpTime < InodeList[i].LastFixTime))
           {
             // Datei wurde VOR dem letzten Neustart korrigiert -> lösche aus der Liste
             NrOkSinceBoot++;
@@ -593,8 +591,6 @@ printf("%2d. InodeNr=%u, LastFixTime=%lu, BootTime=%lu, Now=%lu\n", i+1, InodeLi
             }
             continue;
           }
-          else if (InodeList[i].LastFixTime > 0)
-            continue;  // (neu)
         }
         else
         {
@@ -602,8 +598,7 @@ printf("%2d. InodeNr=%u, LastFixTime=%lu, BootTime=%lu, Now=%lu\n", i+1, InodeLi
           NrFound++;
           if (ret == rc_ALLFILESFIXED) NrFixed++;
         }
-        if ((curTime > InodeList[i].LastFixTime) && (curTime > UNIXTIME2010))
-          InodeList[i].LastFixTime = curTime;
+        InodeList[i].LastFixTime = curUpTime;
       }
       close_device(DoFix);
 
@@ -665,10 +660,7 @@ tReturnCode jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t Rea
   // bisheriges Logfile einlesen
   if (LogFileName && LogFileName[0])
   {
-    time(&curTime);
-    if (curTime <= UNIXTIME2010)
-      printf("Warning! Current system time seems to be incorrect: %s", ctime(&curTime));
-    
+    curUpTime = GetUpTime();
     InodeLog = ReadListFileAlloc(LogFileName, &NrLogEntries, NrFiles);
     if(InodeLog)
       printf("Additional files specified - contents of Listfile will not be processed!\n");
