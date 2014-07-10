@@ -2009,7 +2009,7 @@ int validate_record_fileset_inode(uint32_t inonum, uint32_t inoidx,
 			curInodeDat.di_size = inoptr->di_size;
 			curInodeDat.nblocks_real = agg_recptr->this_inode.all_blks;
 			curInodeDat.nblocks_wrong = inoptr->di_nblocks;
-			curInodeDat.FileName[0] = '\0';
+			memset(curInodeDat.FileName, '\0', sizeof(curInodeDat.FileName));
 			curInodeDat.LastFixTime = 0;
 
 			if (mc_NrMarkedFiles < mc_maxMarkedFiles)
@@ -2019,7 +2019,7 @@ int validate_record_fileset_inode(uint32_t inonum, uint32_t inoidx,
 			}
 			else
 			{
-fprintf(stdout, "realloc of list buffer: %d\n", (mc_maxMarkedFiles + 10) * sizeof(tInodeData));
+//fprintf(stdout, "realloc of list buffer: %d\n", (mc_maxMarkedFiles + 10) * sizeof(tInodeData));
 				tInodeData *temp = (tInodeData*) realloc(mc_MarkedFiles, (mc_maxMarkedFiles + 10) * sizeof(tInodeData));
 				if (temp != NULL)
 				{

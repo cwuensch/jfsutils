@@ -1,7 +1,7 @@
 /*
  *   Copyright (c) International Business Machines Corp., 2000-2002
  *   Copyright (c) Tino Reichardt, 2014
- *   Copyright (c) Christian WÃ¼nsch, 2014
+ *   Copyright (c) Christian Wünsch, 2014
  *
  *   This program is free software;  you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -59,7 +59,7 @@
 #include "jfs_icheck.h"
 
 #define MY_VERSION  "0.3b"
-#define MY_DATE     "2014-07-05"
+#define MY_DATE     "2014-07-10"
 
 #ifdef fsck_BUILD
   #define ick_MAINFUNC() icheck_main
@@ -274,34 +274,41 @@ bool fix_inode(int64_t used_blks)
 
 int64_t calc_realblocks()
 {
-  int64_t CurrentBlocks, ExpectedBlocks, RealBlocks;
+  int64_t               CurrentBlocks, ExpectedBlocks, RealBlocks;
+  int                   i;
 
   // RealBlocks berechnen
   CurrentBlocks = cur_inode.di_nblocks;
   ExpectedBlocks = ((cur_inode.di_size + bsize-1) / bsize);
+  RealBlocks = CurrentBlocks;
 
-  // bei zu starker Abweichung, probiere +/- 1048576
-  if (CurrentBlocks < ExpectedBlocks)
+  // bei zu starker Abweichung, probiere +/- 1048576 (und Vielfache)
+  if ((RealBlocks < ExpectedBlocks) || ((RealBlocks > ExpectedBlocks + 1024) && (RealBlocks >= 0x010000000)))
+    for (i = 1; ((RealBlocks < ExpectedBlocks) || (RealBlocks >= 0x010000000)) && (i <= 10); i++)
+    {
+      RealBlocks = RealBlocks + 1048576;
+      if (RealBlocks / 0x010000000 > CurrentBlocks / 0x010000000)
+        RealBlocks = RealBlocks & 0x0FFFFFFFll;
+    }
+  else if (RealBlocks >= ExpectedBlocks + 1048576)
   {
-    RealBlocks = CurrentBlocks + 1048576;
-  }
-  else if (CurrentBlocks >= ExpectedBlocks + 1048576)
-  {
-    RealBlocks = CurrentBlocks - 1048576;
-    if (RealBlocks > ExpectedBlocks + 1024)
-      RealBlocks = (CurrentBlocks + 1048576) & 0x0FFFFFFFll;
+    for (i = 1; (RealBlocks >= ExpectedBlocks + 1048576) && (i <= 10); i++)
+      RealBlocks = RealBlocks - 1048576;
   }
 
   // wenn immernoch starke Abweichung, lieber wieder den "Original" berechneten Wert nehmen
   if ((RealBlocks < ExpectedBlocks) || (RealBlocks > ExpectedBlocks + 1024))
+  {
+    if(!opt_quiet) printf("~");
     RealBlocks = ExpectedBlocks;
+  }
   return RealBlocks;
 }
 
 
 tReturnCode CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64_t *SizeOfFile, bool DoFix)
 {
-  bool                  tolerance_mode = FALSE;
+  bool                  RealBlocksProvided = (RealBlocks > 0);
   tReturnCode           ret = rc_UNKNOWN;
 
   bool DeviceOpened = (!fp) ? TRUE : FALSE;
@@ -310,17 +317,14 @@ tReturnCode CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlock
     // Inode einlesen
     if (read_inode(InodeNr))
     {
-      // DateigrÃ¶ÃŸe mit der Ã¼bergebenen vergleichen
+      // Dateigröße mit der übergebenen vergleichen
       if ((SizeOfFile == NULL) || (*SizeOfFile == 0) || (cur_inode.di_size == *SizeOfFile))
       {
         if ((SizeOfFile) && (*SizeOfFile == 0)) *SizeOfFile = cur_inode.di_size;
 
-        // tatsÃ¤chliche Blockanzahl berechnen
-        if (RealBlocks == 0)
-        {
-          if (opt_tolerance) tolerance_mode = TRUE;
+        // tatsächliche Blockanzahl berechnen
+        if (!RealBlocksProvided)
           RealBlocks = calc_realblocks();
-        }
 
         // mit der eingetragenen Blockzahl vergleichen und Ergebnis ausgeben
         int64_t cur_blks = cur_inode.di_nblocks;
@@ -330,20 +334,20 @@ tReturnCode CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlock
           /* good */
           ret = rc_ALLFILESOKAY;
           if (!opt_quiet)
-            printf("ok: %s[i=%u] size=%llu blocks=%llu\n", "Inode", InodeNr, cur_inode.di_size, cur_blks);  // good
+            printf("ok: Inode[%u]: size=%llu blocks=%llu\n", InodeNr, cur_inode.di_size, cur_blks);  // good
         }
-        else if (tolerance_mode && (cur_blks >= RealBlocks) && (cur_blks <= RealBlocks + 100))
+        else if ((opt_tolerance && !RealBlocksProvided) && (cur_blks >= RealBlocks) && (cur_blks <= RealBlocks + 100))
         {
           /* tolerance */
           ret = rc_ALLFILESOKAY;
           if (!opt_quiet)
-            printf("ok?: %s[i=%u] size=%llu blocks=%llu, should be %llu (tolerated)\n", "Inode", InodeNr, cur_inode.di_size, cur_blks, RealBlocks);
+            printf("ok?: Inode[%u]: size=%llu blocks=%llu, should be %llu (tolerated)\n", InodeNr, cur_inode.di_size, cur_blks, RealBlocks);
         }
         else
         {
           /* wrong */
           if (!opt_quiet)
-            printf("??: %s[i=%u] size=%llu blocks=%llu, should be %llu", "Inode", InodeNr, cur_inode.di_size, cur_blks, RealBlocks);
+            printf("??: Inode[%u]: size=%llu blocks=%llu, should be %llu", InodeNr, cur_inode.di_size, cur_blks, RealBlocks);
 
           // now the real fixing, if needed
           if (DoFix && fix_inode(RealBlocks))
@@ -367,11 +371,12 @@ tReturnCode CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlock
               if (InodeLog[i].InodeNr == InodeNr) break;
 
             InodeLog[i].InodeNr       = InodeNr;
+            if (i == NrLogEntries || InodeLog[i].di_size != cur_inode.di_size) 
+              memset(InodeLog[i].FileName, '\0', sizeof(InodeLog[i].FileName));
             InodeLog[i].di_size       = cur_inode.di_size;
-            InodeLog[i].nblocks_real  = 0;
+            InodeLog[i].nblocks_real  = (RealBlocksProvided) ? RealBlocks : 0;
             InodeLog[i].nblocks_wrong = cur_blks;
-            InodeLog[i].FileName[0]   = '\0';
-            InodeLog[i].LastFixTime   = curUpTime;
+            InodeLog[i].LastFixTime   = (DoFix) ? curUpTime : 0;
             if (i == NrLogEntries) NrLogEntries++;
           }
         }
@@ -380,7 +385,7 @@ tReturnCode CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlock
       {
         ret = rc_NOFILEFOUND;
         if (!opt_quiet)
-          printf("--: %s[i=%u] size=%llu, expected %llu (skipping inode)\n", "Inode", InodeNr, cur_inode.di_size, *SizeOfFile);
+          printf("--: Inode[%u]: size=%llu, expected %llu (skipping inode)\n", InodeNr, cur_inode.di_size, *SizeOfFile);
       }
     }
     else
@@ -479,12 +484,12 @@ tInodeData* ReadListFileAlloc(const char *AbsListFileName, int *OutNrInodes, int
   fInodeList = fopen(AbsListFileName, "rb");
   if(fInodeList)
   {
-    // DateigrÃ¶ÃŸe bestimmen um Puffer zu allozieren
+    // Dateigröße bestimmen um Puffer zu allozieren
     fseek(fInodeList, 0, SEEK_END);
     fs = ftell(fInodeList);
     rewind(fInodeList);
 
-    // Header prÃ¼fen
+    // Header prüfen
     if (!( (fread(&InodeListHeader, sizeof(tInodeListHeader), 1, fInodeList))
         && (strncmp(InodeListHeader.Magic, "TFinos", 6) == 0)
         && (InodeListHeader.Version == 1)
@@ -499,22 +504,27 @@ tInodeData* ReadListFileAlloc(const char *AbsListFileName, int *OutNrInodes, int
   if(OutNrInodes) *OutNrInodes = InodeListHeader.NrEntries;
 
   // Puffer allozieren
-  InodeList = (tInodeData*) malloc((InodeListHeader.NrEntries + AddEntries) * sizeof(tInodeData));
-  if (InodeList && fInodeList)
+  if (InodeListHeader.NrEntries + AddEntries > 0)
   {
-    NrInodes = fread(InodeList, sizeof(tInodeData), InodeListHeader.NrEntries, fInodeList);
-    if (NrInodes != InodeListHeader.NrEntries)
+//printf("ReadListFileAlloc(): Buffer allocated (%d entries, %d Bytes)\n", InodeListHeader.NrEntries+AddEntries, (InodeListHeader.NrEntries+AddEntries)*sizeof(tInodeData));
+    InodeList = (tInodeData*) malloc((InodeListHeader.NrEntries + AddEntries) * sizeof(tInodeData));
+    if(InodeList)
+      memset(InodeList, '\0', (InodeListHeader.NrEntries + AddEntries) * sizeof(tInodeData));
+    if (InodeList && fInodeList)
     {
-      fclose(fInodeList);
-      free(InodeList);
-      fprintf(stderr, "Error! Unexpected end of list file.\n");
-      return NULL;
+      NrInodes = fread(InodeList, sizeof(tInodeData), InodeListHeader.NrEntries, fInodeList);
+      if (NrInodes != InodeListHeader.NrEntries)
+      {
+        fclose(fInodeList);
+        free(InodeList);
+        fprintf(stderr, "Error! Unexpected end of list file.\n");
+        return NULL;
+      }
     }
+    if (!InodeList)
+      fprintf(stderr, "Error! Not enough memory to store the list file.\n");
   }
   if(fInodeList) fclose(fInodeList);
-
-  if (!InodeList)
-    fprintf(stderr, "Error! Not enough memory to store the list file.\n");
   return InodeList;
 }
 
@@ -534,7 +544,9 @@ bool WriteListFile(const char *AbsListFileName, const tInodeData InodeList[], co
 
     if (fwrite(&InodeListHeader, sizeof(tInodeListHeader), 1, fInodeList))
     {
-      if (fwrite(InodeList, sizeof(tInodeData), NrInodes, fInodeList) == (size_t) NrInodes)
+      if (NrInodes == 0)
+        ret = TRUE;
+      else if (InodeList && (fwrite(InodeList, sizeof(tInodeData), NrInodes, fInodeList) == (size_t) NrInodes))
         ret = TRUE;
     }
     fclose(fInodeList);
@@ -558,12 +570,12 @@ tReturnCode CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, 
     {
       for (i = 0; i < *NrInodes; i++)
       {
-printf("%2d. InodeNr=%u, LastFixTime=%lu, UpTime=%lu\n", i+1, InodeList[i].InodeNr, InodeList[i].LastFixTime, curUpTime);
+//printf("%2d. InodeNr=%u, LastFixTime=%lu, UpTime=%lu\n", i+1, InodeList[i].InodeNr, InodeList[i].LastFixTime, curUpTime);
         ret = CheckInodeByNr(device, InodeList[i].InodeNr, InodeList[i].nblocks_real, &InodeList[i].di_size, DoFix);
         setReturnVal(ret);
         if (ret == rc_NOFILEFOUND)
         {
-          // Datei existiert nicht -> lÃ¶sche aus der Liste
+          // Datei existiert nicht -> lösche aus der Liste
           if (DeleteOldEntries)
           {
             (*NrInodes)--;
@@ -580,7 +592,7 @@ printf("%2d. InodeNr=%u, LastFixTime=%lu, UpTime=%lu\n", i+1, InodeList[i].Inode
 
           if((InodeList[i].LastFixTime > 0) && (curUpTime < InodeList[i].LastFixTime))
           {
-            // Datei wurde VOR dem letzten Neustart korrigiert -> lÃ¶sche aus der Liste
+            // Datei wurde VOR dem letzten Neustart korrigiert -> lösche aus der Liste
             NrOkSinceBoot++;
             if (DeleteOldEntries)
             {
@@ -598,7 +610,8 @@ printf("%2d. InodeNr=%u, LastFixTime=%lu, UpTime=%lu\n", i+1, InodeList[i].Inode
           NrFound++;
           if (ret == rc_ALLFILESFIXED) NrFixed++;
         }
-        InodeList[i].LastFixTime = curUpTime;
+        if(DoFix)
+          InodeList[i].LastFixTime = curUpTime;
       }
       close_device(DoFix);
 
@@ -653,6 +666,7 @@ tReturnCode CheckInodeListFile(char *device, char *ListFileName, bool DoFix, boo
 
 tReturnCode jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t RealBlocks, bool UseInodeNums, bool DoFix, char *LogFileName)
 {
+  int                   NrFound = 0, NrOk = 0, NrFixed = 0;
   tReturnCode           ret, return_value = rc_UNKNOWN;
 
   InodeLog = NULL;
@@ -662,10 +676,10 @@ tReturnCode jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t Rea
   {
     curUpTime = GetUpTime();
     InodeLog = ReadListFileAlloc(LogFileName, &NrLogEntries, NrFiles);
-    if(InodeLog)
-      printf("Additional files specified - contents of Listfile will not be processed!\n");
-    else
+    if(!InodeLog)
       return rc_ERRLISTFILEOPEN;
+    if(NrLogEntries > 0)
+      printf("Additional files specified - contents of Listfile will not be processed!\n");
   }
 
   // eigentlicher Check
@@ -679,8 +693,16 @@ tReturnCode jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t Rea
       else
         ret = CheckInodeByName(device, filenames[i], RealBlocks, DoFix);
       setReturnVal(ret);
+
+      if (ret != rc_NOFILEFOUND)
+      {
+        NrFound++;
+        if (ret == rc_ALLFILESOKAY)       NrOk++;
+        else if (ret == rc_ALLFILESFIXED) NrFixed++;
+      }
     }
     close_device(DoFix);
+    printf("%d files given, %d found. %d of them ok, %d were fixed.\n", NrFiles, NrFound, NrOk, NrFixed);
   }
   else
     return rc_ERRDEVICEOPEN;
@@ -769,7 +791,7 @@ int ick_MAINFUNC()(int argc, char *argv[])
   }  
 
 // *** kaputtmachen ***
-// VOR dem icheck war die Datei auf jeden Fall geÃ¶ffnet, und wurde bearbeitet
+// VOR dem icheck war die Datei auf jeden Fall geöffnet, und wurde bearbeitet
 // (da sie geschnitten wurde). Das wird hier simuliert.
 /*FILE *f;
 f = fopen(argv[optind+1], "r+");
@@ -792,7 +814,7 @@ if (f)
 
 
 // *** kaputtmachen - Teil 2 ***
-// NACH dem icheck wird die Datei wieder geÃ¶ffnet, da das geschnittene Video abgespielt wird.
+// NACH dem icheck wird die Datei wieder geöffnet, da das geschnittene Video abgespielt wird.
 // Das wird hier simuliert.
 /*f = fopen(argv[optind+1], "r+");
 if (f)
