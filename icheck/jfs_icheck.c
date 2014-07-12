@@ -687,7 +687,8 @@ tReturnCode jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t Rea
   {
     /* for each given file ... */
     int i;
-    for (i = 0; i < NrFiles; i++) {
+    for (i = 0; i < NrFiles; i++)
+    {
       if(UseInodeNums)
         ret = CheckInodeByNr(device, strtoul(filenames[i], NULL, 10), RealBlocks, NULL, DoFix);
       else
