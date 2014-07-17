@@ -41,7 +41,7 @@
  * Return Values
  * (the return value can ONLY be increased during the programme!)
  */
-typedef enum tReturnCode
+typedef enum
 {
   rc_UNKNOWN         = -1,
   rc_NOFILEFOUND     =  0,    // es wurde KEINE der übergebenen Dateien gefunden
