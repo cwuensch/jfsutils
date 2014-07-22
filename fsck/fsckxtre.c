@@ -449,6 +449,7 @@ int xTree_node_first_key(struct fsck_Xtree_info *xtiptr,
 	if (xtiptr->this_Qel->node_first_offset &&
 	    (xtiptr->this_key != xtiptr->this_Qel->node_first_offset)) {
 		/* invalid key in 1st xad */
+printf("CW-DEBUG: in " __FILE__ ", line %d: invalid key in 1st xad\n", __LINE__);
 		inorecptr->ignore_alloc_blks = 1;
 		if (desired_action == FSCK_RECORD_DUPCHECK) {
 			/* not reported yet */
@@ -470,6 +471,7 @@ int xTree_node_first_key(struct fsck_Xtree_info *xtiptr,
 		/* a leaf node in a dense file */
 		if (xtiptr->this_key != (xtiptr->last_key + 1)) {
 			/* a gap in a dense file */
+printf("CW-DEBUG: in " __FILE__ ", line %d: a gap in a dense file\n", __LINE__);
 			inorecptr->ignore_alloc_blks = 1;
 			if (desired_action == FSCK_RECORD_DUPCHECK) {
 				/* not reported yet */
@@ -483,6 +485,7 @@ int xTree_node_first_key(struct fsck_Xtree_info *xtiptr,
 		/* not a leaf node in a dense file */
 		if (xtiptr->this_key <= xtiptr->last_key) {
 			/* the extents overlap! */
+printf("CW-DEBUG: in " __FILE__ ", line %d: the extents overlap\n", __LINE__);
 			inorecptr->ignore_alloc_blks = 1;
 			if (desired_action == FSCK_RECORD_DUPCHECK) {
 				/* not reported yet */
@@ -526,6 +529,7 @@ int xTree_node_first_in_level(struct fsck_Xtree_info *xtiptr,
 
 	if (xtiptr->xtp_ptr->header.prev != 0) {
 		/* bad back ptr! */
+printf("CW-DEBUG: in " __FILE__ ", line %d: bad back ptr\n", __LINE__);
 		inorecptr->ignore_alloc_blks = 1;
 
 		if (desired_action == FSCK_RECORD_DUPCHECK) {
@@ -567,6 +571,7 @@ int xTree_node_last_in_level(struct fsck_Xtree_info *xtiptr,
 
 	if (xtiptr->xtp_ptr->header.next != 0) {
 		/* bad forward ptr! */
+printf("CW-DEBUG: in " __FILE__ ", line %d: bad forward ptr\n", __LINE__);
 		inorecptr->ignore_alloc_blks = 1;
 		if (desired_action == FSCK_RECORD_DUPCHECK) {
 			/* not reported yet */
@@ -607,6 +612,7 @@ int xTree_node_not_first_in_level(struct fsck_Xtree_info *xtiptr,
 
 	if (xtiptr->xtp_ptr->header.prev != xtiptr->last_node_addr) {
 		/* bad back ptr! */
+printf("CW-DEBUG: in " __FILE__ ", line %d: bad back ptr2\n", __LINE__);
 		inorecptr->ignore_alloc_blks = 1;
 
 		if (desired_action == FSCK_RECORD_DUPCHECK) {
@@ -648,6 +654,7 @@ int xTree_node_not_last_in_level(struct fsck_Xtree_info *xtiptr,
 
 	if (xtiptr->xtp_ptr->header.next != xtiptr->next_Qel->node_addr) {
 		/* bad forward ptr! */
+printf("CW-DEBUG: in " __FILE__ ", line %d: bad forward ptr2\n", __LINE__);
 		inorecptr->ignore_alloc_blks = 1;
 		if (desired_action == FSCK_RECORD_DUPCHECK) {
 			/* not reported yet */
@@ -664,6 +671,7 @@ int xTree_node_not_last_in_level(struct fsck_Xtree_info *xtiptr,
 			 * 4096 pages but it can't be the last extent
 			 * allocated to the inode
 			 */
+printf("CW-DEBUG: in " __FILE__ ", line %d: last extent described by ...\n", __LINE__);
 			inorecptr->ignore_alloc_blks = 1;
 			if (desired_action == FSCK_RECORD_DUPCHECK) {
 				/* not reported yet */
@@ -739,6 +747,7 @@ int xTree_process_internal_extents(xtpage_t * xtpg_ptr,
 
 		if ((xad_ptr->flag & flag_mask)) {
 			/* bad flag value */
+printf("CW-DEBUG: in " __FILE__ ", line %d: bad flag value\n", __LINE__);
 			ino_recptr->ignore_alloc_blks = 1;
 			goto out;
 		}
@@ -746,6 +755,7 @@ int xTree_process_internal_extents(xtpage_t * xtpg_ptr,
 		this_key = offsetXAD(xad_ptr);
 		if (this_key <= last_key) {
 			/* these keys MUST ascend */
+printf("CW-DEBUG: in " __FILE__ ", line %d: these keys MUST ascend\n", __LINE__);
 			ino_recptr->ignore_alloc_blks = 1;
 			if (desired_action == FSCK_RECORD_DUPCHECK) {
 				/* first detection */
@@ -851,6 +861,7 @@ int xTree_process_leaf_extents(xtpage_t * xtpg_ptr,
 
 		if ((xad_ptr->flag & flag_mask)) {
 			/* bad flag value */
+printf("CW-DEBUG: in " __FILE__ ", line %d: bad flag value\n", __LINE__);
 			ino_recptr->ignore_alloc_blks = 1;
 		}
 
@@ -860,6 +871,7 @@ int xTree_process_leaf_extents(xtpage_t * xtpg_ptr,
 			/* not the first key */
 			if (this_key <= last_key) {
 				/* these keys MUST ascend */
+printf("CW-DEBUG: in " __FILE__ ", line %d: these keys MUST ascend2\n", __LINE__);
 				ino_recptr->ignore_alloc_blks = 1;
 				if (desired_action == FSCK_RECORD_DUPCHECK) {
 					/* first detection */
@@ -875,6 +887,7 @@ int xTree_process_leaf_extents(xtpage_t * xtpg_ptr,
 			if ((dense_file)
 			    && (this_key != (last_key + 1))) {
 				/* a dense file with a gap! */
+printf("CW-DEBUG: in " __FILE__ ", line %d: a dense file with a gap2\n", __LINE__);
 				ino_recptr->ignore_alloc_blks = 1;
 				if (desired_action == FSCK_RECORD_DUPCHECK) {
 					/* first detection */
@@ -911,6 +924,7 @@ int xTree_process_leaf_extents(xtpage_t * xtpg_ptr,
 				Q_elptr->last_ext_uneven = -1;
 			} else {
 				/* not the last extent for the xtpage */
+printf("CW-DEBUG: in " __FILE__ ", line %d: not the last extent for the xtpage\n", __LINE__);
 				ino_recptr->ignore_alloc_blks = 1;
 				if (desired_action == FSCK_RECORD_DUPCHECK) {
 					/* first detection */
@@ -1024,6 +1038,7 @@ int xTree_processing(struct dinode *inoptr,
 	    || (ISDIR(inoptr->di_mode)
 		&& (xtiptr->xtp_ptr->header.maxentry != XTROOTINITSLOT_DIR))) {
 		/* bad maxentry field */
+printf("CW-DEBUG: in " __FILE__ ", line %d: bad maxentry field\n", __LINE__);
 		inorecptr->ignore_alloc_blks = 1;
 		if (desired_action == FSCK_RECORD_DUPCHECK) {
 			/* not reported yet */
@@ -1037,6 +1052,7 @@ int xTree_processing(struct dinode *inoptr,
 	if (xtiptr->xtp_ptr->header.nextindex >
 	    xtiptr->xtp_ptr->header.maxentry) {
 		/* bad nextindex field */
+printf("CW-DEBUG: in " __FILE__ ", line %d: bad nextindex field\n", __LINE__);
 		inorecptr->ignore_alloc_blks = 1;
 		if (desired_action == FSCK_RECORD_DUPCHECK) {
 			/* not reported yet */
@@ -1068,6 +1084,7 @@ int xTree_processing(struct dinode *inoptr,
 
 	if (xtiptr->dense_file && (xtiptr->this_key != ((int64_t) 0))) {
 		/* a dense file with a gap at the front */
+printf("CW-DEBUG: in " __FILE__ ", line %d: a dense file with a gap at the front\n", __LINE__);
 		inorecptr->ignore_alloc_blks = 1;
 		if (desired_action == FSCK_RECORD_DUPCHECK) {
 			/* not reported yet */
@@ -1111,6 +1128,7 @@ int xTree_processing(struct dinode *inoptr,
 			     xtiptr->this_Qel, msg_info_ptr, desired_action);
 		} else {
 			/* invalid flag value! */
+printf("CW-DEBUG: in " __FILE__ ", line %d: invalid flag value2\n", __LINE__);
 			inorecptr->ignore_alloc_blks = 1;
 			if (desired_action == FSCK_RECORD_DUPCHECK) {
 				/* not reported yet */
@@ -1175,6 +1193,7 @@ int xTree_processing(struct dinode *inoptr,
 		is_root = 0;
 		xp_rc = node_get(xtiptr->this_Qel->node_addr, &xtiptr->xtp_ptr);
 		if (xp_rc != FSCK_OK) {	/* bad read! */
+printf("CW-DEBUG: in " __FILE__ ", line %d: bad read\n", __LINE__);
 			inorecptr->ignore_alloc_blks = 1;
 			if (desired_action == FSCK_RECORD_DUPCHECK) {
 				/* not reported yet */
@@ -1189,6 +1208,7 @@ int xTree_processing(struct dinode *inoptr,
 		/* got the new node */
 		if (xtiptr->xtp_ptr->header.maxentry != XTPAGEMAXSLOT) {
 			/* bad maxentry field */
+printf("CW-DEBUG: in " __FILE__ ", line %d: bad maxentry field2\n", __LINE__);
 			inorecptr->ignore_alloc_blks = 1;
 			if (desired_action == FSCK_RECORD_DUPCHECK) {
 				/* not reported yet */
@@ -1200,6 +1220,7 @@ int xTree_processing(struct dinode *inoptr,
 		} else if (xtiptr->xtp_ptr->header.nextindex >
 			   xtiptr->xtp_ptr->header.maxentry) {
 			/* bad nextindex field */
+printf("CW-DEBUG: in " __FILE__ ", line %d: bad nextindex field2\n", __LINE__);
 			inorecptr->ignore_alloc_blks = 1;
 			if (desired_action == FSCK_RECORD_DUPCHECK) {
 				/* not reported yet */
@@ -1230,6 +1251,7 @@ int xTree_processing(struct dinode *inoptr,
 				       sizeof (pxd_t));
 		if (ixpxd_unequal) {
 			/* bad self field in header */
+printf("CW-DEBUG: in " __FILE__ ", line %d: bad self field in header\n", __LINE__);
 			inorecptr->ignore_alloc_blks = 1;
 			if (desired_action == FSCK_RECORD_DUPCHECK) {
 				/* not reported yet */
@@ -1262,6 +1284,7 @@ int xTree_processing(struct dinode *inoptr,
 			xtiptr->ext_length = lengthXAD(xtiptr->xad_ptr);
 		} else {
 			/* an empty non-root node */
+printf("CW-DEBUG: in " __FILE__ ", line %d: an empty non-root node\n", __LINE__);
 			inorecptr->ignore_alloc_blks = 1;
 			if (desired_action == FSCK_RECORD_DUPCHECK) {
 				/* not reported yet */
@@ -1302,6 +1325,7 @@ int xTree_processing(struct dinode *inoptr,
 				     msg_info_ptr, desired_action);
 			} else {
 				/* an invalid flag value! */
+printf("CW-DEBUG: in " __FILE__ ", line %d: an invalid flag value\n", __LINE__);
 				inorecptr->ignore_alloc_blks = 1;
 				if (desired_action == FSCK_RECORD_DUPCHECK) {
 					/* not reported yet */

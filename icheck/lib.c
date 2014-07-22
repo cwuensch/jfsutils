@@ -1,4 +1,3 @@
-
 /*
  *   Copyright (c) International Business Machines Corp., 2000-2002
  *   Copyright (c) Tino Reichardt, 2014

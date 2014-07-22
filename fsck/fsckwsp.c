@@ -3171,6 +3171,7 @@ int process_extent(struct fsck_inode_record *inorecptr,
 			agg_recptr->corrections_needed = 1;
 		} else {
 			/* either a node (internal or leaf) or data */
+printf("CW-DEBUG: in " __FILE__ ", line %d: start/end problem\n", __LINE__);
 			inorecptr->selected_to_rls = 1;
 			inorecptr->ignore_alloc_blks = 1;
 			agg_recptr->corrections_needed = 1;

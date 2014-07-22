@@ -59,7 +59,7 @@
 #include "jfs_icheck.h"
 
 #define MY_VERSION  "0.3b"
-#define MY_DATE     "2014-07-10"
+#define MY_DATE     "2014-07-22"
 
 #ifdef fsck_BUILD
   #define ick_MAINFUNC() icheck_main
@@ -169,17 +169,17 @@ bool drop_caches()
   return FALSE;
 }
 
-void close_device(bool flush_cache)
+void close_device(bool FlushCache)
 {
   ujfs_flush_dev(fp);
   fclose(fp);
 
   /* @ drop caches also in the end... the system should read our new (correct) data */
-  if (flush_cache)
+  if (FlushCache)
     drop_caches();
 }
 
-bool open_device(char *device)
+bool open_device(char *device, bool FlushCache)
 {
   struct superblock sb;
 
@@ -195,12 +195,13 @@ bool open_device(char *device)
   if (fp != NULL)
   {
     /* @ first, drop caches, so we read/write fresh/valid data */
-    if (!drop_caches())
-    {
-//      setReturnVal(rc_ERRDROPCACHE);
-      fclose(fp);
-      return(FALSE);
-    }
+    if(FlushCache)
+      if (!drop_caches())
+      {
+//        setReturnVal(rc_ERRDROPCACHE);
+        fclose(fp);
+        return(FALSE);
+      }
 
     /* Get block size information from the superblock */
     if (ujfs_get_superblk(fp, &sb, 1))
@@ -312,7 +313,7 @@ tReturnCode CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlock
   tReturnCode           ret = rc_UNKNOWN;
 
   bool DeviceOpened = (!fp) ? TRUE : FALSE;
-  if (fp || open_device(device))
+  if (fp || open_device(device, DoFix))
   {
     // Inode einlesen
     if (read_inode(InodeNr))
@@ -566,7 +567,7 @@ tReturnCode CheckInodeList(char *device, tInodeData InodeList[], int *NrInodes, 
 
   if (InodeList && (*NrInodes > 0))
   {
-    if (open_device(device))
+    if (open_device(device, DoFix))
     {
       for (i = 0; i < *NrInodes; i++)
       {
@@ -683,7 +684,7 @@ tReturnCode jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t Rea
   }
 
   // eigentlicher Check
-  if (open_device(device))
+  if (open_device(device, DoFix))
   {
     /* for each given file ... */
     int i;

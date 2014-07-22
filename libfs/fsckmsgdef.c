@@ -599,7 +599,7 @@ struct fsck_message msg_defs[fsck_highest_msgid_defined+1] = {
   /* 589 */ { lrdo_LOGINUSE, "LOGREDO:  Log is in use.", fsck_debug},
   /* 590 */ { avail_for_debug_only_590, "*undefined*", fsck_debug},
   /* 591 */ { mc_FINISHED,              "**Finished.", fsck_quiet},
-  /* 592 */ { mc_CHECKABORTED,          "MC corrupted inodes have been found. Would be released. Check aborted!", fsck_quiet},
+  /* 592 */ { mc_CHECKABORTED,          "MC corrupted inodes have been found. Would be released. -> Check aborted!", fsck_quiet},
   /* 593 */ { mc_PHASEi,                "**Phase i - correction of wrong inode values\n", fsck_quiet},
   /* 594 */ { mc_DEFECTFILEFOUND,       "[MC1] %lu: inode is incorrect (nblocks=%lld, real=%lld, size=%lld).", fsck_quiet},
   /* 595 */ { mc_ERRORMARKINGFILE,      "[MC2] %lu: Error marking the inode for correction.", fsck_quiet},

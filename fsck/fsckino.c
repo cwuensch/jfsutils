@@ -1430,6 +1430,7 @@ int validate_data(struct dinode *inoptr, uint32_t inoidx,
 		if (inode_is_metadata(inorecptr)) {
 			vd_rc = FSCK_BADMDDATA;
 		} else {
+printf("CW-DEBUG: in " __FILE__ ", line %d: not B+ Tree index\n", __LINE__);
 			inorecptr->selected_to_rls = 1;
 			inorecptr->ignore_alloc_blks = 1;
 			agg_recptr->corrections_needed = 1;
@@ -1497,6 +1498,7 @@ int validate_dir_data(struct dinode *inoptr, uint32_t inoidx,
 		/*
 		 * the data root is not valid...the info cannot be trusted
 		 */
+printf("CW-DEBUG: in " __FILE__ ", line %d: the data root is not valid...\n", __LINE__);
 		inorecptr->selected_to_rls = 1;
 		inorecptr->ignore_alloc_blks = 1;
 		agg_recptr->corrections_needed = 1;
@@ -1890,6 +1892,7 @@ int validate_record_fileset_inode(uint32_t inonum, uint32_t inoidx,
 
 	if (!(inode_type_recognized(inoptr))) {
 		/* bad type */
+printf("CW-DEBUG: in " __FILE__ ", line %d: bad type\n", __LINE__);
 		inorecptr->inode_type = unrecognized_inode;
 		ino_msg_info_ptr->msg_inotyp = fsck_file;
 		inorecptr->selected_to_rls = 1;
@@ -2073,13 +2076,14 @@ int validate_record_fileset_inode(uint32_t inonum, uint32_t inoidx,
 				 * then object size (in bytes) is is wrong
 				 * - tree must be bad.
 				 */
-#ifdef _JFS_DEBUG
+printf("CW-DEBUG: in " __FILE__ ", line %d: object size is wrong\n", __LINE__);
+//#ifdef _JFS_DEBUG
 				printf
 				    ("inode: %ld (t)   min_size = %lld (t)   "
 				     "max_size = %lld (t)  di_size = %lld (t)\n",
 				     inonum, min_size, max_size,
 				     inoptr->di_size);
-#endif
+//#endif
 				fsck_send_msg(fsck_BADKEYS,
 					      fsck_ref_msg(ino_msg_info_ptr->msg_inotyp),
 					      fsck_ref_msg(ino_msg_info_ptr->msg_inopfx),

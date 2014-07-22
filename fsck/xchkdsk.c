@@ -386,6 +386,10 @@ int main(int argc, char **argv)
 	if ((mc_NrDefectFiles > 0) && !agg_recptr->processing_readonly)
 	{
 		fsck_send_msg(mc_CHECKABORTED);
+		// Disable write processing now
+		agg_recptr->processing_readonly = 1;
+		agg_recptr->processing_readwrite = 0;
+//		mc_parmFixWrongnblocks = 1;
 		goto phases_complete;
 	}
 	rc = phase5_processing();
@@ -1869,7 +1873,7 @@ void parse_parms(int argc, char **argv)
 		* quick: perform only the first 4 steps
 		 ******************/
 			mc_parmFirstStepsOnly = 1;
-			agg_recptr->parm_options[UFS_CHKDSK_LEVEL0] = -1;  // read-only!
+//			agg_recptr->parm_options[UFS_CHKDSK_LEVEL0] = -1;  // read-only!
 			break;
 
 		case 'i':
@@ -1918,6 +1922,13 @@ void parse_parms(int argc, char **argv)
 
 	Vol_Label = device_name;
 
+	if (mc_parmFirstStepsOnly)
+	{
+		if ((agg_recptr->parm_options[UFS_CHKDSK_LEVEL3] || agg_recptr->parm_options[UFS_CHKDSK_LEVEL2]) && !agg_recptr->parm_options[UFS_CHKDSK_LEVEL0])
+			mc_parmFirstStepsOnly = 0;
+		else
+			agg_recptr->parm_options[UFS_CHKDSK_LEVEL0] = -1;
+	}
 
 	if (mc_parmInodesOnly && (argc > optind + 1))
 	{
@@ -3223,7 +3234,7 @@ void fsck_usage()
 	       " -v                 Be verbose.\n"
 	       " -V                 Print version information only.\n"
 	       " -r                 Repair inode if nblocks has incorrect value (writes!).\n"
-	       " -q                 Quick: Perform only the first 4 steps (read-only).\n"
+	       " -q                 Quick: Perform only the first 4 steps (ro, if not -a or -f).\n"
 	       " -i                 Check only the specified inodes (read-only).\n"
 	       " -L filename        Write corrupted inodes to a list file.\n"
 	       " --omit_journal_replay    Omit transaction log replay.\n"
