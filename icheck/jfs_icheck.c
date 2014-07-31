@@ -59,7 +59,7 @@
 #include "jfs_icheck.h"
 
 #define MY_VERSION  "0.3b"
-#define MY_DATE     "2014-07-22"
+#define MY_DATE     "2014-07-31"
 
 #ifdef fsck_BUILD
   #define ick_MAINFUNC() icheck_main
@@ -85,6 +85,7 @@ unsigned long           curUpTime = 0;
 
 /* global values for our options */
 bool opt_tolerance   =  TRUE;
+bool opt_clearcache  =  TRUE;
 bool opt_usefibmap   =  FALSE;
 bool opt_quiet       =  FALSE;
 
@@ -132,6 +133,7 @@ void usage()
 //           " -t        use tolerance mode when calculating size (default when not -b or -c)\n"
            " -c        calculate the real size via FIBMAP (not with -i, default: off)\n"
            " -f        fix the inode block number value (default: off)\n"
+           " -n        do not clear the inode cache before fixing (default: off)\n"
            " -q        enable quiet mode (default: off)\n"
            " -h        show some help about usage\n\n");
 }
@@ -144,13 +146,15 @@ void usage()
  */
 bool drop_caches()
 {
-  FILE *fp = fopen("/proc/sys/vm/drop_caches", "w");
-
   /* we are syncing only our wanted disk here... */
   sync();
   sync();
 
+  if (!opt_clearcache)
+    return TRUE;
+
   /* open proc file */
+  FILE *fp = fopen("/proc/sys/vm/drop_caches", "w");
   if (fp)
   {
     /* drop all caches */
@@ -730,7 +734,7 @@ int ick_MAINFUNC()(int argc, char *argv[])
   bool                  opt_deleteoldentries = FALSE;
   tReturnCode           return_value         = rc_UNKNOWN;
 
-  while ((opt = getopt(argc, argv, "ib:l:L:tcfqh?")) != -1) {
+  while ((opt = getopt(argc, argv, "ib:l:L:tcfnqh?")) != -1) {
     switch (opt) {
       case 'i':
         opt_useinodenums = TRUE;
@@ -752,6 +756,9 @@ int ick_MAINFUNC()(int argc, char *argv[])
         break;
       case 'f':
         opt_fixinode = TRUE;
+        break;
+      case 'n':
+        opt_clearcache = FALSE;
         break;
       case 'q':
         opt_quiet = TRUE;

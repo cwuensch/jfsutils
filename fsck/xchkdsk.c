@@ -381,15 +381,16 @@ int main(int argc, char **argv)
 		goto phases_complete;
 	rc = phase4_processing();
 //	fflush(stdout);
-	if (agg_recptr->fsck_is_done || mc_parmFirstStepsOnly || (mc_NrDefectFiles > 0 && mc_parmFixWrongnblocks))
-		goto phases_complete;
-	if ((mc_NrDefectFiles > 0) && !agg_recptr->processing_readonly)
+	if (agg_recptr->fsck_is_done || mc_parmFirstStepsOnly || (mc_NrDefectFiles > 0 && (mc_parmFixWrongnblocks || !agg_recptr->processing_readonly)))
 	{
-		fsck_send_msg(mc_CHECKABORTED);
-		// Disable write processing now
-		agg_recptr->processing_readonly = 1;
-		agg_recptr->processing_readwrite = 0;
-//		mc_parmFixWrongnblocks = 1;
+		if ((mc_NrDefectFiles > 0) && !agg_recptr->processing_readonly)
+		{
+			fsck_send_msg(mc_CHECKABORTED);
+			// Disable write processing now
+			agg_recptr->processing_readonly = 1;
+			agg_recptr->processing_readwrite = 0;
+			goto phases_complete;
+		}
 		goto phases_complete;
 	}
 	rc = phase5_processing();
@@ -408,7 +409,7 @@ int main(int argc, char **argv)
 
 phases_complete:
 	fsck_send_msg(mc_FINISHED);
-	if ((mc_NrDefectFiles > 0) && !agg_recptr->processing_readonly)
+	if ((mc_NrDefectFiles > 0) /*&& !agg_recptr->processing_readonly*/)
 		agg_recptr->ag_dirty = 1;
 	if (!agg_recptr->superblk_ok) {
 		/* superblock is bad */
@@ -1865,7 +1866,7 @@ void parse_parms(int argc, char **argv)
 		* repair the value in inode instead of releasing
  		 ******************/
 			mc_parmFixWrongnblocks = 1;
-			agg_recptr->parm_options[UFS_CHKDSK_LEVEL0] = -1;  // read-only!
+//			agg_recptr->parm_options[UFS_CHKDSK_LEVEL0] = -1;  // read-only!
 			break;
 
 		case 'q':
@@ -1922,7 +1923,7 @@ void parse_parms(int argc, char **argv)
 
 	Vol_Label = device_name;
 
-	if (mc_parmFirstStepsOnly)
+	if (mc_parmFirstStepsOnly || mc_parmFixWrongnblocks)
 	{
 		if ((agg_recptr->parm_options[UFS_CHKDSK_LEVEL3] || agg_recptr->parm_options[UFS_CHKDSK_LEVEL2]) && !agg_recptr->parm_options[UFS_CHKDSK_LEVEL0])
 			mc_parmFirstStepsOnly = 0;
