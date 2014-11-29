@@ -542,7 +542,7 @@ bool WriteListFile(const char *AbsListFileName, const tInodeData InodeList[], co
   fInodeList = fopen(AbsListFileName, "wb");
   if(fInodeList)
   {
-    strcpy(InodeListHeader.Magic, "TFinos");
+    strncpy(InodeListHeader.Magic, "TFinos", 6);
     InodeListHeader.Version   = 1;
     InodeListHeader.NrEntries = NrInodes;
     InodeListHeader.FileSize  = (NrInodes * sizeof(tInodeData)) + sizeof(tInodeListHeader);
