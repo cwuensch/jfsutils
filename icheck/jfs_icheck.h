@@ -26,7 +26,7 @@
 #define H_JFS_ICHECK
 
 #ifndef __MOVIECUTTERLIB__
-  #include "jfs_types.h"
+  #include "../include/jfs_types.h"
   #ifndef TRUE
   #define TRUE          true
   #endif
