@@ -3546,7 +3546,7 @@ int verify_metadata_data(struct dinode *inoptr,
 			/* number of blocks is wrong.  tree must be bad */
 printf("CW-DEBUG: in " __FILE__ ", line %d: number of blocks is wrong.\n", __LINE__);
 //#ifdef _JFS_DEBUG
-			printf("bad num blocks: agg ino: %ld(t)  "
+			printf("bad num blocks: agg ino: %u(t)  "
 			       "di_nblocks = %lld(t)  "
 			       "this_inode.all_blks = %lld(t)\n",
 			       inoidx, inoptr->di_nblocks,
@@ -3578,9 +3578,9 @@ printf("CW-DEBUG: in " __FILE__ ", line %d: number of blocks is wrong.\n", __LIN
 				 * object size (in bytes) is wrong.
 				 * tree must be bad.
 				 */
-printf("CW-DEBUG: in " __FILE__ ", line %d: object size (in bytes, __LINE__) is wrong\n");
+printf("CW-DEBUG: in " __FILE__ ", line %d: object size (in bytes) is wrong\n", __LINE__);
 //#ifdef _JFS_DEBUG
-				printf("bad object size: agg ino: %ld(t)  "
+				printf("bad object size: agg ino: %u(t)  "
 				       "minsize = %lld(t)  maxsize = %lld(t)  "
 				       "di_size = %lld(t)\n",
 				       inoidx, min_size, max_size,

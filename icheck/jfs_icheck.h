@@ -25,6 +25,12 @@
 #ifndef H_JFS_ICHECK
 #define H_JFS_ICHECK
 
+#ifdef fsck_BUILD
+  #define ick_MAINFUNC icheck_main
+#else
+  #define ick_MAINFUNC main
+#endif
+
 #ifndef __MOVIECUTTERLIB__
   #include "../include/jfs_types.h"
   #ifndef TRUE
@@ -81,6 +87,7 @@ typedef struct
   extern int64_t AIT_2nd_offset;   /* Used by find_iag routines */
 
   /* Global Functions */
+  int ick_MAINFUNC(int argc, char *argv[]);
   tReturnCode jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t RealBlocks, bool UseInodeNums, bool DoFix, char *LogFileName);
   tReturnCode CheckInodeByName(char *device, char *filename, int64_t RealBlocks, bool DoFix);
   tReturnCode CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64_t *SizeOfFile, bool DoFix);

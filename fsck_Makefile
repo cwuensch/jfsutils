@@ -100,7 +100,7 @@ AUTOMAKE = ${SHELL} /tap/SamplesTMS/MovieCutter/jfsutils/missing --run automake-
 AWK = gawk
 CC = mipsel-linux-uclibc-gcc
 CCDEPMODE = depmode=gcc3
-CFLAGS = -pipe -Os -static
+CFLAGS = -pipe -Os -static -W -Wall
 CPP = mipsel-linux-uclibc-gcc -E
 CPPFLAGS = 
 CYGPATH_W = cygpath -w

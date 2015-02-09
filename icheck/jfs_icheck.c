@@ -59,13 +59,7 @@
 #include "jfs_icheck.h"
 
 #define MY_VERSION  "0.3b"
-#define MY_DATE     "2014-07-31"
-
-#ifdef fsck_BUILD
-  #define ick_MAINFUNC() icheck_main
-#else
-  #define ick_MAINFUNC() main
-#endif
+#define MY_DATE     "2014-12-31"
 
 #define setReturnVal(x)  if (return_value <= x) return_value = x
 
@@ -111,8 +105,8 @@ unsigned long GetBootTime(void)
       }
     }
     fclose(fp);
-    return 0;
   }
+  return 0;
 }
 unsigned long GetUpTime(void)
 {
@@ -724,7 +718,7 @@ tReturnCode jfs_icheck(char *device, char *filenames[], int NrFiles, int64_t Rea
   return return_value;
 }
 
-int ick_MAINFUNC()(int argc, char *argv[])
+int ick_MAINFUNC(int argc, char *argv[])
 {
   int                   opt;    /* for getopt() */
   bool                  opt_useinodenums     = FALSE;

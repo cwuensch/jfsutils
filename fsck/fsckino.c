@@ -2079,7 +2079,7 @@ printf("CW-DEBUG: in " __FILE__ ", line %d: bad type\n", __LINE__);
 printf("CW-DEBUG: in " __FILE__ ", line %d: object size is wrong\n", __LINE__);
 //#ifdef _JFS_DEBUG
 				printf
-				    ("inode: %ld (t)   min_size = %lld (t)   "
+				    ("inode: %u (t)   min_size = %lld (t)   "
 				     "max_size = %lld (t)  di_size = %lld (t)\n",
 				     inonum, min_size, max_size,
 				     inoptr->di_size);

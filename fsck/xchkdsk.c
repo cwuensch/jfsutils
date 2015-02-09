@@ -3068,7 +3068,7 @@ int validate_fs_inodes()
 	int which_it = FILESYSTEM_I;	/* in release 1 there is only 1 fileset */
 	struct fsck_ino_msg_info ino_msg_info;
 	struct fsck_ino_msg_info *msg_info_ptr;
-	int DoCheck, i;
+	int DoCheck = 0, i;
 
 	msg_info_ptr = &ino_msg_info;
 	/* all fileset owned */
