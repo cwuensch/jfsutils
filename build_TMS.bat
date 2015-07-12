@@ -11,5 +11,6 @@ copy /y ..\fsck_Makefile fsck\Makefile
 copy /y ..\icheck\*.h ..\fsck\
 copy /y ..\icheck\*.c ..\fsck\
 make
+copy /y icheck\jfs_icheck ..\.. > nul
 copy /y fsck\jfs_fsck ..\.. > nul
 pause

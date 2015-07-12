@@ -20,6 +20,14 @@
 /*
  *   FUNCTION: common data & function prototypes
  */
+
+#define _LARGEFILE64_SOURCE
+#define __USE_LARGEFILE64  1
+#define _FILE_OFFSET_BITS  64
+#ifdef _MSC_VER
+  #define __const const
+#endif
+
 #include "lib.h"
 
 /* Defines */
@@ -134,13 +142,13 @@ int find_iag(unsigned iagnum, unsigned which_table, int64_t * address)
 	int rc;
 
 	if (which_table != FILESYSTEM_I &&
-	    which_table != AGGREGATE_I && which_table != AGGREGATE_2ND_I) {
+	    which_table != (unsigned int)AGGREGATE_I && which_table != (unsigned int)AGGREGATE_2ND_I) {
 		fprintf(stderr, "find_iag: Invalid fileset, %d\n", which_table);
 		return 1;
 	}
 	iagblock = IAGTOLBLK(iagnum, L2PSIZE - l2bsize);
 
-	if (which_table == AGGREGATE_2ND_I) {
+	if (which_table == (unsigned int)AGGREGATE_2ND_I) {
 		fileset_inode_address = AIT_2nd_offset + sizeof (struct dinode);
 	} else {
 		fileset_inode_address = AGGR_INODE_TABLE_START + (which_table * sizeof (struct dinode));

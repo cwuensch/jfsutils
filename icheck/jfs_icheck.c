@@ -22,11 +22,15 @@
  *   FUNCTION: Alter inodes in a mounted filesystem
  */
 
-#define _FILE_OFFSET_BITS 64
-#define __USE_FILE_OFFSET64
+#define _LARGEFILE64_SOURCE
+#define __USE_LARGEFILE64  1
+#define _FILE_OFFSET_BITS  64
 #ifdef _MSC_VER
   #define __const const
 #endif
+
+#include "lib.h"
+#include "jfs_icheck.h"
 
 #include <sys/types.h>
 #include <sys/ioctl.h>
@@ -55,11 +59,8 @@
 #include "jfs_imap.h"
 #include "jfs_superblock.h"
 
-#include "lib.h"
-#include "jfs_icheck.h"
-
 #define MY_VERSION  "0.3b"
-#define MY_DATE     "2014-12-31"
+#define MY_DATE     "2015-07-01"
 
 #define setReturnVal(x)  if (return_value <= x) return_value = x
 
