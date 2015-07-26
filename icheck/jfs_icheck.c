@@ -1,7 +1,7 @@
 /*
  *   Copyright (c) International Business Machines Corp., 2000-2002
  *   Copyright (c) Tino Reichardt, 2014
- *   Copyright (c) Christian Wünsch, 2014
+ *   Copyright (c) Christian Wünsch, 2015
  *
  *   This program is free software;  you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -59,8 +59,8 @@
 #include "jfs_imap.h"
 #include "jfs_superblock.h"
 
-#define MY_VERSION  "0.3b"
-#define MY_DATE     "2015-07-01"
+#define MY_VERSION  "0.3c"
+#define MY_DATE     "2015-07-25"
 
 #define setReturnVal(x)  if (return_value <= x) return_value = x
 
@@ -149,18 +149,16 @@ bool drop_caches()
     return TRUE;
 
   /* open proc file */
-  FILE *fp = fopen("/proc/sys/vm/drop_caches", "w");
-  if (fp)
+  int fp = open("/proc/sys/vm/drop_caches", O_WRONLY | O_TRUNC | O_CREAT | O_APPEND, 0666);
+  if (fp >= 0)
   {
     /* drop all caches */
-    if (fprintf(fp, "3\n") > 0)
-    {
-      fclose(fp);
-      return TRUE;
-    }
-    else
-      perror("echo 3 > /proc/sys/vm/drop_caches failed!");
-    fclose(fp);
+    if (write(fp, "3\n", 2) == 2)
+      if ((fsync(fp) == 0) && (close(fp) == 0))
+        return TRUE;
+
+    perror("echo 3 > /proc/sys/vm/drop_caches failed!");
+    close(fp);
   }
   else
     perror ("fopen /proc/sys/vm/drop_caches failed, can't flush disk!");
@@ -475,28 +473,28 @@ tInodeData* ReadListFileAlloc(const char *AbsListFileName, int *OutNrInodes, int
 {
   tInodeListHeader      InodeListHeader;
   tInodeData           *InodeList  = NULL;
-  FILE                 *fInodeList = NULL;
+  int                   fInodeList = -1;
   int                   NrInodes = 0;
   unsigned long         fs = 0;
 
   InodeListHeader.NrEntries = 0;
   
-  fInodeList = fopen(AbsListFileName, "rb");
-  if(fInodeList)
+  fInodeList = open(AbsListFileName, O_RDONLY);
+  if(fInodeList >= 0)
   {
     // Dateigröße bestimmen um Puffer zu allozieren
-    fseek(fInodeList, 0, SEEK_END);
-    fs = ftell(fInodeList);
-    rewind(fInodeList);
+    struct stat statbuf;
+    if (fstat(fInodeList, &statbuf) == 0)
+      fs = statbuf.st_size;
 
     // Header prüfen
-    if (!( (fread(&InodeListHeader, sizeof(tInodeListHeader), 1, fInodeList))
+    if (!( (read(fInodeList, &InodeListHeader, sizeof(tInodeListHeader)) == sizeof(tInodeListHeader))
         && (strncmp(InodeListHeader.Magic, "TFinos", 6) == 0)
         && (InodeListHeader.Version == 1)
         && (InodeListHeader.FileSize == fs)
-        && (InodeListHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fs)))
+        && (InodeListHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fs) ))
     {
-      fclose(fInodeList);
+      close(fInodeList);
       fprintf(stderr, "Invalid list file header!\n");
       return NULL;
     }
@@ -512,10 +510,10 @@ tInodeData* ReadListFileAlloc(const char *AbsListFileName, int *OutNrInodes, int
       memset(InodeList, '\0', (InodeListHeader.NrEntries + AddEntries) * sizeof(tInodeData));
     if (InodeList && fInodeList)
     {
-      NrInodes = fread(InodeList, sizeof(tInodeData), InodeListHeader.NrEntries, fInodeList);
+      NrInodes = read(fInodeList, InodeList, InodeListHeader.NrEntries * sizeof(tInodeData)) / sizeof(tInodeData);
       if (NrInodes != InodeListHeader.NrEntries)
       {
-        fclose(fInodeList);
+        close(fInodeList);
         free(InodeList);
         fprintf(stderr, "Error! Unexpected end of list file.\n");
         return NULL;
@@ -524,32 +522,33 @@ tInodeData* ReadListFileAlloc(const char *AbsListFileName, int *OutNrInodes, int
     if (!InodeList)
       fprintf(stderr, "Error! Not enough memory to store the list file.\n");
   }
-  if(fInodeList) fclose(fInodeList);
+  if(fInodeList >= 0) close(fInodeList);
   return InodeList;
 }
 
 bool WriteListFile(const char *AbsListFileName, const tInodeData InodeList[], const int NrInodes)
 {
   tInodeListHeader      InodeListHeader;
-  FILE                 *fInodeList = NULL;
+  int                   fInodeList = -1;
   bool                  ret = FALSE;
 
-  fInodeList = fopen(AbsListFileName, "wb");
-  if(fInodeList)
+  fInodeList = open(AbsListFileName, O_WRONLY | O_TRUNC | O_CREAT | O_APPEND, 0666);
+  if(fInodeList >= 0)
   {
     strncpy(InodeListHeader.Magic, "TFinos", 6);
     InodeListHeader.Version   = 1;
     InodeListHeader.NrEntries = NrInodes;
     InodeListHeader.FileSize  = (NrInodes * sizeof(tInodeData)) + sizeof(tInodeListHeader);
 
-    if (fwrite(&InodeListHeader, sizeof(tInodeListHeader), 1, fInodeList))
+    if (write(fInodeList, &InodeListHeader, sizeof(tInodeListHeader)) == sizeof(tInodeListHeader))
     {
       if (NrInodes == 0)
         ret = TRUE;
-      else if (InodeList && (fwrite(InodeList, sizeof(tInodeData), NrInodes, fInodeList) == (size_t) NrInodes))
+      else if (InodeList && (write(fInodeList, InodeList, NrInodes * sizeof(tInodeData)) == NrInodes * (int)sizeof(tInodeData)))
         ret = TRUE;
     }
-    fclose(fInodeList);
+    ret = (fsync(fInodeList) == 0) && ret;
+    ret = (close(fInodeList) == 0) && ret;
   }
   return ret;
 }
