@@ -59,8 +59,8 @@
 #include "jfs_imap.h"
 #include "jfs_superblock.h"
 
-#define MY_VERSION  "0.3c"
-#define MY_DATE     "2015-07-25"
+#define MY_VERSION  "0.3b"
+#define MY_DATE     "2015-08-01"
 
 #define setReturnVal(x)  if (return_value <= x) return_value = x
 
