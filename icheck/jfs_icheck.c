@@ -149,12 +149,12 @@ bool drop_caches()
     return TRUE;
 
   /* open proc file */
-  int fp = open("/proc/sys/vm/drop_caches", O_WRONLY | O_TRUNC | O_CREAT | O_APPEND, 0666);
+  int fp = open("/proc/sys/vm/drop_caches", O_WRONLY | O_TRUNC | O_CREAT | O_APPEND | O_SYNC, 0666);
   if (fp >= 0)
   {
     /* drop all caches */
     if (write(fp, "3\n", 2) == 2)
-      if ((fsync(fp) == 0) && (close(fp) == 0))
+      if (close(fp) == 0)
         return TRUE;
 
     perror("echo 3 > /proc/sys/vm/drop_caches failed!");
@@ -723,7 +723,7 @@ int ick_MAINFUNC(int argc, char *argv[])
   int                   opt;    /* for getopt() */
   bool                  opt_useinodenums     = FALSE;
   bool                  opt_fixinode         = FALSE;
-  bool                  opt_realsize         = FALSE;
+  int64_t               opt_realsize         = 0;
   char                  opt_listfile[512];     opt_listfile[0] = '\0';
   bool                  opt_deleteoldentries = FALSE;
   tReturnCode           return_value         = rc_UNKNOWN;
@@ -734,7 +734,7 @@ int ick_MAINFUNC(int argc, char *argv[])
         opt_useinodenums = TRUE;
         break;
       case 'b':
-        opt_realsize = strtoul(optarg, NULL, 0);
+        opt_realsize = strtoull(optarg, NULL, 0);
         break;
       case 'L':
         opt_deleteoldentries = TRUE;
