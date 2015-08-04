@@ -80,11 +80,11 @@ typedef struct
 
 #ifndef __MOVIECUTTERLIB__
   /* Global Data */
-  extern unsigned type_jfs;
-  extern int bsize;
   extern FILE *fp;
+  extern int bsize;
   extern short l2bsize;
   extern int64_t AIT_2nd_offset;   /* Used by find_iag routines */
+//  extern unsigned type_jfs;
 
   /* Global Functions */
   int ick_MAINFUNC(int argc, char *argv[]);

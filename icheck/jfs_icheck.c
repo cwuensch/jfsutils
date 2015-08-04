@@ -66,29 +66,31 @@
 
 
 /* Global Data */
-unsigned int            type_jfs;
 FILE                   *fp = NULL;           /* Used by libfs routines       */
 int                     bsize;               /* aggregate block size         */
 short                   l2bsize;             /* log2 of aggregate block size */
 int64_t                 AIT_2nd_offset;      /* Used by find_iag routines    */
-struct                  dinode cur_inode;
-int64_t                 cur_address;
+static unsigned int     type_jfs;
 
-tInodeData             *InodeLog = NULL;
-int                     NrLogEntries = 0;
-unsigned long           curUpTime = 0;
+/* global variables for this file only */
+static struct dinode    cur_inode;
+static int64_t          cur_address;
+
+static tInodeData      *InodeLog = NULL;
+static int              NrLogEntries = 0;
+static unsigned long    curUpTime = 0;
 
 /* global values for our options */
-bool opt_tolerance   =  TRUE;
-bool opt_clearcache  =  TRUE;
-bool opt_usefibmap   =  FALSE;
-bool opt_quiet       =  FALSE;
+static bool opt_tolerance   =  TRUE;
+static bool opt_clearcache  =  TRUE;
+static bool opt_usefibmap   =  FALSE;
+static bool opt_quiet       =  FALSE;
 
 
 /**
  * internal functions
  */
-unsigned long GetBootTime(void)
+static unsigned long GetBootTime(void)
 {
   char                  Buffer[BUFSIZ];
   static unsigned long  btime = 0;
@@ -109,7 +111,7 @@ unsigned long GetBootTime(void)
   }
   return 0;
 }
-unsigned long GetUpTime(void)
+static unsigned long GetUpTime(void)
 {
   return (time(NULL) - GetBootTime());
 }
@@ -117,7 +119,7 @@ unsigned long GetUpTime(void)
 /**
  * show some info how we where called
  */
-void usage()
+static void usage()
 {
   printf("\nUsage: jfs_icheck [options] <device> file1 [file2 .. fileN]\n"
            " -i        use inode-numbers instead of file-names (default: off)\n"
@@ -139,7 +141,7 @@ void usage()
  * 2 -> drop dentries and inodes
  * 3 -> drop pagecache, dentries and inodes
  */
-bool drop_caches()
+static bool drop_caches()
 {
   /* we are syncing only our wanted disk here... */
   sync();
@@ -166,7 +168,7 @@ bool drop_caches()
   return FALSE;
 }
 
-void close_device(bool FlushCache)
+static void close_device(bool FlushCache)
 {
   ujfs_flush_dev(fp);
   fclose(fp);
@@ -176,7 +178,7 @@ void close_device(bool FlushCache)
     drop_caches();
 }
 
-bool open_device(char *device, bool FlushCache)
+static bool open_device(char *device, bool FlushCache)
 {
   struct superblock sb;
 
@@ -232,7 +234,7 @@ bool open_device(char *device, bool FlushCache)
 /**
  * read some inode
  */
-bool read_inode(unsigned int InodeNr)
+static bool read_inode(unsigned int InodeNr)
 {
   if (!InodeNr || find_inode(InodeNr, FILESYSTEM_I, &cur_address))
     return(FALSE);
@@ -252,7 +254,7 @@ bool read_inode(unsigned int InodeNr)
 /**
  * fix some data on current inode
  */
-bool fix_inode(int64_t used_blks)
+static bool fix_inode(int64_t used_blks)
 {
   /* fix nblocks value */
   cur_inode.di_nblocks = used_blks;
@@ -270,7 +272,7 @@ bool fix_inode(int64_t used_blks)
   }
 }
 
-int64_t calc_realblocks()
+static int64_t calc_realblocks()
 {
   int64_t               CurrentBlocks, ExpectedBlocks, RealBlocks;
   int                   i;
@@ -507,19 +509,21 @@ tInodeData* ReadListFileAlloc(const char *AbsListFileName, int *OutNrInodes, int
 //printf("ReadListFileAlloc(): Buffer allocated (%d entries, %d Bytes)\n", InodeListHeader.NrEntries+AddEntries, (InodeListHeader.NrEntries+AddEntries)*sizeof(tInodeData));
     InodeList = (tInodeData*) malloc((InodeListHeader.NrEntries + AddEntries) * sizeof(tInodeData));
     if(InodeList)
-      memset(InodeList, '\0', (InodeListHeader.NrEntries + AddEntries) * sizeof(tInodeData));
-    if (InodeList && fInodeList)
     {
-      NrInodes = read(fInodeList, InodeList, InodeListHeader.NrEntries * sizeof(tInodeData)) / sizeof(tInodeData);
-      if (NrInodes != InodeListHeader.NrEntries)
+      memset(InodeList, '\0', (InodeListHeader.NrEntries + AddEntries) * sizeof(tInodeData));
+      if (fInodeList >= 0)
       {
-        close(fInodeList);
-        free(InodeList);
-        fprintf(stderr, "Error! Unexpected end of list file.\n");
-        return NULL;
+        NrInodes = read(fInodeList, InodeList, InodeListHeader.NrEntries * sizeof(tInodeData)) / sizeof(tInodeData);
+        if (NrInodes != InodeListHeader.NrEntries)
+        {
+          close(fInodeList);
+          free(InodeList);
+          fprintf(stderr, "Error! Unexpected end of list file.\n");
+          return NULL;
+        }
       }
     }
-    if (!InodeList)
+    else
       fprintf(stderr, "Error! Not enough memory to store the list file.\n");
   }
   if(fInodeList >= 0) close(fInodeList);
