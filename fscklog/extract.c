@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/types.h>
 
 #include "devices.h"
 #include "diskmap.h"

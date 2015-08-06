@@ -182,7 +182,7 @@ void dump_service_log()
 				} else {
 					/* the record looks ok */
 					msg_txt = &log_entry[log_entry_pos];
-					printf(msg_txt);
+					printf("%s", msg_txt);
 					/*
 					 * set up for the next record
 					 */

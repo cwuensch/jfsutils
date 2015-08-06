@@ -2751,6 +2751,8 @@ int iags_rebuild(int is_aggregate,
 		iagiptr->iagptr->iagnum = iag_idx;
 		this_ag =
 		    iagiptr->iagptr->agstart / ((int64_t) sb_ptr->s_agsize);
+#if 0
+		/* Old kernels don't update agstart during resize */
 		if (iagiptr->iagptr->agstart != (this_ag * sb_ptr->s_agsize)) {
 			/* not a valid starting block for an AG */
 			this_ag = 0;
@@ -2758,13 +2760,15 @@ int iags_rebuild(int is_aggregate,
 			fsck_send_msg(fsck_BADIAGAGSTRTCRCTD,
 				      fsck_ref_msg(msg_info_ptr->msg_mapowner),
 				      iag_idx);
-		} else if ((this_ag < 0) || (this_ag > MAXAG)) {
+		} else
+#endif
+		    if ((this_ag < 0) || (this_ag > MAXAG)) {
 			/* not a valid starting block for an AG */
-			this_ag = 0;
-			iagiptr->iagptr->agstart = 0;
 			fsck_send_msg(fsck_BADIAGAGCRCTD,
 				      fsck_ref_msg(msg_info_ptr->msg_mapowner),
 				      iag_idx, (long long) this_ag);
+			this_ag = 0;
+			iagiptr->iagptr->agstart = 0;
 		}
 		/*
 		 * count allocations and build maps for this iag
@@ -2879,6 +2883,8 @@ int iags_validation(int is_aggregate,
 		}
 		this_ag =
 		    iagiptr->iagptr->agstart / ((int64_t) sb_ptr->s_agsize);
+#if 0
+		/* Old kernels don't update agstart during resize */
 		if (iagiptr->iagptr->agstart != (this_ag * sb_ptr->s_agsize)) {
 			/* not a valid starting block for an AG */
 			bad_agstrt_in_iag = -1;
@@ -2886,7 +2892,9 @@ int iags_validation(int is_aggregate,
 			fsck_send_msg(fsck_BADIAGAGSTRT,
 				      fsck_ref_msg(msg_info_ptr->msg_mapowner),
 				      iag_idx);
-		} else if ((this_ag < 0) || (this_ag > MAXAG)) {
+		} else
+#endif
+		    if ((this_ag < 0) || (this_ag > MAXAG)) {
 			/* not a valid starting block for an AG */
 			bad_agstrt_in_iag = -1;
 			errors_in_iag = -1;

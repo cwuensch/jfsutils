@@ -5,7 +5,7 @@ Group     : System/Kernel
 
 Summary   : IBM JFS utility programs
 
-Copyright : GPL
+Copyright : GPL v2 or later
 Packager  : JFS/Linux team <shaggy@kernel.org>
 URL       : http://jfs.sourceforge.net/
 
