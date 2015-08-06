@@ -1,4 +1,26 @@
+2014-05-05 Dave Kleikamp <dave.kleikamp@oracle.com>
+	* fscklog/extract.c: Fix compile error by including sys/types.h
+
+2013-12-03 Dave Kleikamp <dave.kleikamp@oracle.com>
+	* fscklog/display.c: fix unsecure printf statement
+	* fscklog/fscklog.c: likewise
+	* logdump/helpers.c: likewise
+
+2012-05-11 Dave Kleikamp <dave.kleikamp@oracle.com>
+	* fsck/fsckimap.c: print err message before re-assigning this_ag
+	* libfs/log_map.c: add sanity check before using agno as array index
+
+2011-06-20 Dave Kleikamp <dave.kleikamp@oracle.com>
+	* fsck/fsckimap.c: Allow agstart to be anywhere within AG
+
+2011-05-04 Dave Kleikamp <shaggy@kernel.org>
+	* libfs/logredo.c: check for non-zero return code from findLog()
+
+2011-03-07 Dave Kleikamp <shaggy@kernel.org>
+	* libfs/log_map.c: bMapInit: nbytes needs to be 64 bits
+
 2011-03-04 Dave Kleikamp <shaggy@vnet.linux.ibm.com>
+	* COPYING: Add GPLv2 file to avoid automake's GPLv3 default
 	* configure.in: Bumped version to 1.1.15
 	* NEWS: likewise
 	* README: likewise

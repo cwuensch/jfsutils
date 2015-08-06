@@ -496,7 +496,7 @@ int jfs_logredo(caddr_t pathname, FILE *fp, int32_t use_2nd_aggSuper)
 	 * validate that the log is not currently in use;
 	 */
 	rc = findLog(fp, &in_use);
-	if (rc < 0) {
+	if (rc) {
 		fsck_send_msg(lrdo_DEVOPNREADERROR);
 		return (rc);
 	}

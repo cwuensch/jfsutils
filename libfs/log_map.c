@@ -340,7 +340,8 @@ int bMapInit(int vol,		/* index in vopen array */
 	caddr_t p0 = NULL;
 	xtpage_t *xp;
 	int i, j, k, w, pgidx;
-	int32_t nbytes, npages, this_page;
+	int64_t nbytes;
+	int32_t npages, this_page;
 	uint32_t *pmap, mask;
 	pxd_t pxd;
 	int64_t xaddr;
@@ -1062,6 +1063,13 @@ int writeImap(int vol,		/* index in vopen array */
 
 		iagfree = 0;
 		agno = BLKNOTOAG(iagp->agstart, vopen[vol].l2agsize);
+		if ((agno < 0) || (agno > MAXAG)) {
+			fsck_send_msg(fsck_BADIAGAGCRCTD,
+				      fsck_ref_msg(fsck_fileset),
+				      iagp->iagnum, (long long) agno);
+			iagp->agstart = 0;
+			agno = 0;
+		}
 		updateImapPage(vol, iagp, &numinos, &iagfree);
 
 		if (iagfree) {	/* all inodes are free, then this iag should

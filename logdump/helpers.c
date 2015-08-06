@@ -95,8 +95,8 @@ int v_fsck_send_msg(int msg_num, const char *file_name, int line_number, ...) {
 
 	sprintf(debug_detail, " [%s:%d]\n", file_name, line_number);
 
-	printf(msg_string);
-	printf(debug_detail);
+	printf("%s", msg_string);
+	printf("%s", debug_detail);
 
 	return 0;
 }
