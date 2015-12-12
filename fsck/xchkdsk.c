@@ -254,7 +254,7 @@ int main(int argc, char **argv)
 	agg_recptr = &agg_record;
 	bmap_recptr = &bmap_record;
 
-	setvbuf(stdout, NULL, _IOLBF, 4096);
+	setvbuf(stdout, NULL, _IOLBF, 4096);  // zeilenweises Buffering, auch bei Ausgabe in Datei
 
 #ifdef _JFS_DEBUG
 	printf("sb_ptr = %p   agg_recptr = %p   bmap_recptr = %p\n", sb_ptr,
