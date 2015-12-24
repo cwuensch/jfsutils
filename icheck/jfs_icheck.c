@@ -548,7 +548,7 @@ bool WriteListFile(const char *AbsListFileName, const tInodeData InodeList[], co
     {
       if (NrInodes == 0)
         ret = TRUE;
-      else if (InodeList && (fwrite(InodeList, sizeof(tInodeData), NrInodes, fInodeList) == NrInodes))
+      else if (InodeList && (fwrite(InodeList, sizeof(tInodeData), NrInodes, fInodeList) == (size_t)NrInodes))
         ret = TRUE;
     }
 //    ret = (fflush(fInodeList) == 0) && ret;
