@@ -732,6 +732,8 @@ int ick_MAINFUNC(int argc, char *argv[])
   bool                  opt_deleteoldentries = FALSE;
   tReturnCode           return_value         = rc_UNKNOWN;
 
+  setvbuf(stdout, NULL, _IOLBF, 4096);  // zeilenweises Buffering, auch bei Ausgabe in Datei
+
   while ((opt = getopt(argc, argv, "ib:l:L:tcfnqh?")) != -1) {
     switch (opt) {
       case 'i':
