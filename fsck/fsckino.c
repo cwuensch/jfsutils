@@ -16,14 +16,12 @@
  *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 #include <config.h>
-#include <stdlib.h>
 #include <string.h>
 /* defines and includes common among the fsck.jfs modules */
 #include "xfsckint.h"
 #include "jfs_byteorder.h"
 #include "jfs_unicode.h"
 #include "unicode_to_utf8.h"
-#include "../icheck/jfs_icheck.h"
 
 /* + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + +
  *
@@ -31,10 +29,8 @@
  *
  *      defined in xchkdsk.c
  */
-extern char *Vol_Label;
-extern int mc_parmFixWrongnblocks;
-extern int mc_NrDefectFiles, mc_NrMarkedFiles, mc_maxMarkedFiles;
-extern tInodeData *mc_MarkedFiles;
+extern int  mc_parmFixWrongnblocks;
+extern bool mc_AddDefectInode(unsigned int InodeNr, int64_t size, int64_t nblocks_real, int64_t nblocks_wrong, char* Path);
 
 /* + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + +
   *
@@ -348,19 +344,7 @@ int display_path(uint32_t inoidx, int inopfx, uint32_t ino_parent,
 			fsck_send_msg(fsck_INOPATHOK, fsck_ref_msg(fsck_file),
 				      fsck_ref_msg(inopfx), inoidx, inopath);
 			
-			int i; char *p;
-			for (i = 0; i < mc_NrMarkedFiles; i++)
-			{
-				if (mc_MarkedFiles[i].InodeNr == inoidx)
-				{
-					p = NULL;
-					if (strlen(inopath) >= sizeof(mc_MarkedFiles[i].FileName))
-						p = strrchr(inopath, '/');
-					strncpy(mc_MarkedFiles[i].FileName, ((p && p[1]) ? (p+1) : inopath), sizeof(mc_MarkedFiles[i].FileName) - 1);
-					mc_MarkedFiles[i].FileName[sizeof(mc_MarkedFiles[i].FileName)-1] = '\0';
-					break;
-				}
-			}
+			mc_AddDefectInode(inoidx, 0, 0, 0, inopath);
 		}
 	} else {
 		/* else a directory w/ multiple parents */
@@ -2000,40 +1984,13 @@ printf("CW-DEBUG: in " __FILE__ ", line %d: bad type\n", __LINE__);
 			     agg_recptr->this_inode.all_blks);
 #endif
 
-			mc_NrDefectFiles++;
 			fsck_send_msg(mc_DEFECTFILEFOUND,
 				      inonum,
 				      inoptr->di_nblocks,
 				      agg_recptr->this_inode.all_blks,
 				      inoptr->di_size);
 
-			tInodeData curInodeDat;
-			curInodeDat.InodeNr = inonum;
-			curInodeDat.di_size = inoptr->di_size;
-			curInodeDat.nblocks_real = agg_recptr->this_inode.all_blks;
-			curInodeDat.nblocks_wrong = inoptr->di_nblocks;
-			memset(curInodeDat.FileName, '\0', sizeof(curInodeDat.FileName));
-			curInodeDat.LastFixTime = 0;
-
-			if (mc_NrMarkedFiles < mc_maxMarkedFiles)
-			{
-				mc_MarkedFiles[mc_NrMarkedFiles] = curInodeDat;
-				mc_NrMarkedFiles++;
-			}
-			else
-			{
-//fprintf(stdout, "realloc of list buffer: %d\n", (mc_maxMarkedFiles + 10) * sizeof(tInodeData));
-				tInodeData *temp = (tInodeData*) realloc(mc_MarkedFiles, (mc_maxMarkedFiles + 10) * sizeof(tInodeData));
-				if (temp != NULL)
-				{
-					mc_MarkedFiles = temp;
-					mc_maxMarkedFiles += 10;
-					mc_MarkedFiles[mc_NrMarkedFiles] = curInodeDat;
-					mc_NrMarkedFiles++;
-				}
-				else
-					fsck_send_msg(mc_ERRORMARKINGFILE, inonum);
-			}
+			mc_AddDefectInode(inonum, inoptr->di_size, agg_recptr->this_inode.all_blks, inoptr->di_nblocks, NULL);
 
 			if (mc_parmFixWrongnblocks)
 				inoptr->di_nblocks = agg_recptr->this_inode.all_blks;

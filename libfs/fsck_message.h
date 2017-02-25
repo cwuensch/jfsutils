@@ -43,11 +43,12 @@ extern int v_send_msg(int, const char *, int, ...);
 #define avail_382              382
 #define avail_383              383
 
-#define avail_for_debug_only_590              590
-#define mc_FINISHED                           591
-#define mc_CHECKABORTED                       592
-#define mc_PHASEi                             593
-#define mc_DEFECTFILEFOUND                    594
+//#define avail_for_debug_only_590              590
+#define mc_FINISHED                           590
+#define mc_CHECKABORTED                       591
+#define mc_PHASEi                             592
+#define mc_DEFECTFILEFOUND                    593
+#define mc_DEFECTTREEFOUND                    594
 #define mc_ERRORMARKINGFILE                   595
 #define mc_SUMMARYDEFECTFILES                 596
 #define mc_ICHECKOKAY                         597

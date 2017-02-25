@@ -86,6 +86,65 @@ int  mc_NrDefectFiles = 0, mc_NrMarkedFiles = 0, mc_maxMarkedFiles = 0;
 unsigned long *mc_CheckInodes; int mc_NrCheckInodes;
 tInodeData *mc_MarkedFiles = NULL;
 
+bool mc_AddDefectInode(unsigned int InodeNr, int64_t size, int64_t nblocks_real, int64_t nblocks_wrong, char* Path)
+{
+  tInodeData            newInode;
+  tInodeData           *curInode = &newInode;
+  int                   i;
+  bool                  Found = FALSE;
+
+  memset(curInode, 0, sizeof(tInodeData));
+
+  for (i = 0; i < mc_NrMarkedFiles; i++)
+  {
+    if (mc_MarkedFiles[i].InodeNr == InodeNr)
+    {
+      Found = TRUE;
+      curInode = &mc_MarkedFiles[i];
+      break;
+    }
+  }
+
+  curInode->InodeNr = InodeNr;
+  if (size)          curInode->di_size = size;
+  if (nblocks_real)  curInode->nblocks_real = nblocks_real;
+  if (nblocks_wrong) curInode->nblocks_wrong = nblocks_wrong;
+  if (Path && *Path)
+  {
+    char *p = NULL;
+    if (strlen(Path) >= sizeof(curInode->FileName))
+      p = strrchr(Path, '/');
+    strncpy(curInode->FileName, ((p && p[1]) ? (p+1) : Path), sizeof(curInode->FileName) - 1);
+    curInode->FileName[sizeof(curInode->FileName)-1] = '\0';
+  }
+
+  if (!Found && (nblocks_real || !Path))  // Path nur einfügen, wenn Inode schon bekannt
+  {
+    mc_NrDefectFiles++;
+
+    if (mc_NrMarkedFiles < mc_maxMarkedFiles)
+    {
+      mc_MarkedFiles[mc_NrMarkedFiles] = newInode;
+      mc_NrMarkedFiles++;
+    }
+    else
+    {
+      //fprintf(stdout, "realloc of list buffer: %d\n", (mc_maxMarkedFiles + 10) * sizeof(tInodeData));
+      tInodeData *temp = (tInodeData*) realloc(mc_MarkedFiles, (mc_maxMarkedFiles + 10) * sizeof(tInodeData));
+      if (temp != NULL)
+      {
+        mc_MarkedFiles = temp;
+        mc_maxMarkedFiles += 10;
+        mc_MarkedFiles[mc_NrMarkedFiles] = newInode;
+        mc_NrMarkedFiles++;
+      }
+      else
+        fsck_send_msg(mc_ERRORMARKINGFILE, InodeNr);
+    }
+  }
+}
+
+
 /* + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + +
  *
  * For directory entry processing

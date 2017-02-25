@@ -59,8 +59,8 @@
 #include "jfs_imap.h"
 #include "jfs_superblock.h"
 
-#define MY_VERSION  "0.3b"
-#define MY_DATE     "2015-08-01"
+#define MY_VERSION  "0.4"
+#define MY_DATE     "2017-02-26"
 
 #define setReturnVal(x)  if (return_value <= x) return_value = x
 
@@ -129,7 +129,7 @@ static void usage()
            "           (if files to check are specified, <fn> will only by used as Log)\n"
 //           " -t        use tolerance mode when calculating size (default when not -b or -c)\n"
            " -c        calculate the real size via FIBMAP (not with -i, default: off)\n"
-           " -f        fix the inode block number value (default: off)\n"
+           " -f        fix the inode block number and tree errors (default: off)\n"
            " -n        do not clear the inode cache before fixing (default: off)\n"
            " -q        enable quiet mode (default: off)\n"
            " -h        show some help about usage\n\n");
@@ -306,9 +306,48 @@ static int64_t calc_realblocks()
 }
 
 
+static bool CheckInodeXTree(unsigned int InodeNr)
+{
+  xtpage_t              xtree_area2;
+  xtpage_t             *xtree, *xtree2 = &xtree_area2;
+  bool                  ret = TRUE;
+  int                   i;
+
+  if ((cur_inode.di_mode & IFMT) != IFDIR)
+  {
+    xtree = (xtpage_t *) & (cur_inode.di_btroot);
+
+	if ((xtree->header.flag & BT_LEAF) == 0)
+    {
+      for (i = 2; i < xtree->header.nextindex; i++)
+      {
+	    int64_t xtpage_address2 = addressXAD(&(xtree->xad[i])) * bsize;
+
+	    if (xRead(xtpage_address2, sizeof (xtpage_t), (char *) xtree2) == 0)
+        {
+          /* swap if on big endian machine */
+          ujfs_swap_xtpage_t(xtree2);
+
+          if ((xtree->xad[i].off1 != xtree2->xad[2].off1) || (xtree->xad[i].off2 != xtree2->xad[2].off2))
+          {
+            printf("??: Inode[%u]: Tree Error! Internal XAD[%d], offset=%llu, should be %llu", InodeNr, i, offsetXAD(&(xtree->xad[i])), offsetXAD(&(xtree2->xad[2])));
+            xtree->xad[i].off1 = xtree2->xad[2].off1;
+            xtree->xad[i].off2 = xtree2->xad[2].off2;
+            ret = FALSE;
+          }
+        }
+        else
+          fputs("xtree: error reading xtpage\n\n", stderr);
+      }
+    }
+  }
+  return ret;
+}
+
 tReturnCode CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64_t *SizeOfFile, bool DoFix)
 {
   bool                  RealBlocksProvided = (RealBlocks > 0);
+  bool                  TreeOK = TRUE;
   tReturnCode           ret = rc_UNKNOWN;
 
   bool DeviceOpened = (!fp) ? TRUE : FALSE;
@@ -322,6 +361,8 @@ tReturnCode CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlock
       {
         if ((SizeOfFile) && (*SizeOfFile == 0)) *SizeOfFile = cur_inode.di_size;
 
+        TreeOK = CheckInodeXTree(InodeNr);
+
         // tatsächliche Blockanzahl berechnen
         if (!RealBlocksProvided)
           RealBlocks = calc_realblocks();
@@ -333,20 +374,21 @@ tReturnCode CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlock
         {
           /* good */
           ret = rc_ALLFILESOKAY;
-          if (!opt_quiet)
+          if (!opt_quiet && TreeOK)
             printf("ok: Inode[%u]: size=%llu blocks=%llu\n", InodeNr, cur_inode.di_size, cur_blks);  // good
         }
         else if ((opt_tolerance && !RealBlocksProvided) && (cur_blks >= RealBlocks) && (cur_blks <= RealBlocks + 100))
         {
           /* tolerance */
           ret = rc_ALLFILESOKAY;
-          if (!opt_quiet)
+          if (!opt_quiet && TreeOK)
             printf("ok?: Inode[%u]: size=%llu blocks=%llu, should be %llu (tolerated)\n", InodeNr, cur_inode.di_size, cur_blks, RealBlocks);
+          RealBlocks = cur_blks;
         }
-        else
+        if (cur_blks != RealBlocks || !TreeOK)
         {
           /* wrong */
-          if (!opt_quiet)
+          if (!opt_quiet && cur_blks != RealBlocks)
             printf("??: Inode[%u]: size=%llu blocks=%llu, should be %llu", InodeNr, cur_inode.di_size, cur_blks, RealBlocks);
 
           // now the real fixing, if needed

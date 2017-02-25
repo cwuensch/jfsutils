@@ -38,6 +38,15 @@ extern struct superblock *sb_ptr;
   */
 extern struct fsck_agg_record *agg_recptr;
 
+/* + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + +
+ *
+ * For message processing
+ *
+ *      defined in xchkdsk.c
+ */
+extern int  mc_parmFixWrongnblocks;
+extern bool mc_AddDefectInode(unsigned int InodeNr, int64_t size, int64_t nblocks_real, int64_t nblocks_wrong, char* Path);
+
 /* VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
  *
  * The following are internal to this file
@@ -448,18 +457,37 @@ int xTree_node_first_key(struct fsck_Xtree_info *xtiptr,
 	 */
 	if (xtiptr->this_Qel->node_first_offset &&
 	    (xtiptr->this_key != xtiptr->this_Qel->node_first_offset)) {
-		/* invalid key in 1st xad */
-printf("CW-DEBUG: in " __FILE__ ", line %d: invalid key in 1st xad\n", __LINE__);
-		inorecptr->ignore_alloc_blks = 1;
-		if (desired_action == FSCK_RECORD_DUPCHECK) {
+
+        /* invalid key in 1st xad */
+#ifdef _JFS_DEBUG
+		printf("CW-DEBUG: in " __FILE__ ", line %d: invalid key in 1st xad. this_key=%lld, node_first_offset=%lld.\n", __LINE__, xtiptr->this_key, xtiptr->this_Qel->node_first_offset);
+#endif
+          
+		if (desired_action == FSCK_RECORD_DUPCHECK)
+		{
 			/* not reported yet */
-			fsck_send_msg(fsck_BADKEYS,
+			fsck_send_msg(mc_DEFECTTREEFOUND,
+				      msg_info_ptr->msg_inonum,
+				      xtiptr->this_Qel->node_first_offset,
+				      xtiptr->this_key);
+
+			mc_AddDefectInode(inorecptr->inonum, 0, 0, 0, NULL);
+                        
+/*			fsck_send_msg(fsck_BADKEYS,
 				      fsck_ref_msg(msg_info_ptr->msg_inotyp),
 				      fsck_ref_msg(msg_info_ptr->msg_inopfx),
 				      msg_info_ptr->msg_inonum,
-				      5);
+				      5); */
 		}
-		goto out;
+
+		if (mc_parmFixWrongnblocks)
+			// Sollwert:
+			xtiptr->this_Qel->node_first_offset = offsetXAD(xtiptr->xad_ptr);
+//		else
+		{
+			inorecptr->ignore_alloc_blks = 1;
+			goto out;
+		}
 	}
 
 	/* 1st xad might be ok */
@@ -755,7 +783,7 @@ printf("CW-DEBUG: in " __FILE__ ", line %d: bad flag value\n", __LINE__);
 		this_key = offsetXAD(xad_ptr);
 		if (this_key <= last_key) {
 			/* these keys MUST ascend */
-printf("CW-DEBUG: in " __FILE__ ", line %d: these keys MUST ascend\n", __LINE__);
+printf("CW-DEBUG: in " __FILE__ ", line %d: these keys MUST ascend (this_key=%lld, last_key=%lld)\n", __LINE__, this_key, last_key);
 			ino_recptr->ignore_alloc_blks = 1;
 			if (desired_action == FSCK_RECORD_DUPCHECK) {
 				/* first detection */
@@ -871,7 +899,7 @@ printf("CW-DEBUG: in " __FILE__ ", line %d: bad flag value\n", __LINE__);
 			/* not the first key */
 			if (this_key <= last_key) {
 				/* these keys MUST ascend */
-printf("CW-DEBUG: in " __FILE__ ", line %d: these keys MUST ascend2\n", __LINE__);
+printf("CW-DEBUG: in " __FILE__ ", line %d: these keys MUST ascend2 (this_key=%lld, last_key=%lld)\n", __LINE__, this_key, last_key);
 				ino_recptr->ignore_alloc_blks = 1;
 				if (desired_action == FSCK_RECORD_DUPCHECK) {
 					/* first detection */
@@ -1263,11 +1291,7 @@ printf("CW-DEBUG: in " __FILE__ ", line %d: bad self field in header\n", __LINE_
 		} else if (xtiptr->xtp_ptr->header.nextindex > XTENTRYSTART) {
 			if (xtiptr->xtp_ptr->header.flag & BT_LEAF) {
 				/* it's a leaf */
-				xtiptr->xad_ptr
-				    =
-				    &
-				    (xtiptr->xtp_ptr->xad
-				     [xtiptr->xtp_ptr->header.nextindex - 1]);
+				xtiptr->xad_ptr = &(xtiptr->xtp_ptr->xad[xtiptr->xtp_ptr->header.nextindex - 1]);
 				agg_recptr->this_inode.data_size =
 				    (int64_t) (offsetXAD
 					       (xtiptr->xad_ptr) +

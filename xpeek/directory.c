@@ -713,10 +713,11 @@ char display_internal_slots(struct dtslot *slot, int8_t *stbl, int8_t nextindex,
 
 char display_leaf_xads(xad_t * xad, short nextindex, int *changed)
 {
-	int i;
-	char result = 0;
+	int i, field;
+	char cmd_line[512], *token;
 
 	for (i = 2; i < nextindex; i++) {
+	  redisplay3:
 		printf("XAD # = %d\n", i);
 		printf("[1] xad.flag\t  %x\t\t", xad[i].flag);
 		printf("[4] xad.len\t  0x%06x\n", xad[i].len);
@@ -727,18 +728,56 @@ char display_leaf_xads(xad_t * xad, short nextindex, int *changed)
 		printf("    xad.off  \t  %lld\t\t", (long long) offsetXAD(&(xad[i])));
 		printf("    xad.addr\t  %lld\n", (long long) addressXAD(&(xad[i])));
 
-		result = prompt("xtree: press enter for next or e[x]it > ");
-		if (result == 'x' || result == 'u')
-			return result;
+	  retry3:
+		fputs("xtree: press enter for next, [m]od or e[x]it > ", stdout);
+
+		fgets(cmd_line, 80, stdin);
+		token = strtok(cmd_line, "      \n");
+		if (token) {
+			if (*token == 'x' || *token == 'u')
+				return *token;
+
+			else if (*token == 'm') {
+				field = m_parse(cmd_line, 6, &token);
+				if (field == 0)
+					goto retry3;
+
+				switch (field) {
+				case 1:
+					xad[i].flag = strtoul(token, 0, 16);
+					break;
+				case 2:
+					xad[i].off1 = strtoul(token, 0, 0);
+					break;
+				case 3:
+					xad[i].off2 = strtoul(token, 0, 0);
+					break;
+				case 4:
+					xad[i].len = strtoul(token, 0, 0);
+					break;
+				case 5:
+					xad[i].addr1 = strtoul(token, 0, 0);
+					break;
+				case 6:
+					xad[i].addr2 = strtoul(token, 0, 0);
+					break;
+				}
+
+				*changed = 1;
+				goto redisplay3;
+			}
+		}
 	}
-	return result;
+	return 0;
 }
 char display_internal_xads(xad_t * xad, short nextindex, int *changed)
 {
-	int i;
 	char result = 0;
+	int i, field;
+	char cmd_line[512], *token;
 
 	for (i = 2; i < nextindex; i++) {
+	  redisplay4:
 		printf("XAD # = %d\n", i);
 		printf("[1] xad.flag\t  %x\t\t", xad[i].flag);
 		printf("[4] xad.len\t  0x%06x\n", xad[i].len);
@@ -749,15 +788,51 @@ char display_internal_xads(xad_t * xad, short nextindex, int *changed)
 		printf("    xad.off  \t  %lld\t\t", (long long) offsetXAD(&(xad[i])));
 		printf("    xad.addr\t  %lld\n", (long long) addressXAD(&(xad[i])));
 
-		result = prompt("xtree: press enter for next or [u]p, [d]own or e[x]it > ");
-		if (result == 'x' || result == 'u')
-			return result;
-		else if (result == 'd') {
-			result = display_internal_xtpage(xad[i]);
-			return result;
+	  retry4:
+		fputs("xtree: press enter for next or [u]p, [d]own, [m]od or e[x]it > ", stdout);
+
+		fgets(cmd_line, 80, stdin);
+		token = strtok(cmd_line, "      \n");
+		if (token) {
+			if (*token == 'x' || *token == 'u')
+				return *token;
+			else if (*token == 'd') {
+				result = display_internal_xtpage(xad[i]);
+				return result;
+			}
+
+			else if (*token == 'm') {
+				field = m_parse(cmd_line, 6, &token);
+				if (field == 0)
+					goto retry4;
+
+				switch (field) {
+				case 1:
+					xad[i].flag = strtoul(token, 0, 16);
+					break;
+				case 2:
+					xad[i].off1 = strtoul(token, 0, 0);
+					break;
+				case 3:
+					xad[i].off2 = strtoul(token, 0, 0);
+					break;
+				case 4:
+					xad[i].len = strtoul(token, 0, 0);
+					break;
+				case 5:
+					xad[i].addr1 = strtoul(token, 0, 0);
+					break;
+				case 6:
+					xad[i].addr2 = strtoul(token, 0, 0);
+					break;
+				}
+
+				*changed = 1;
+				goto redisplay4;
+			}
 		}
 	}
-	return result;
+	return 0;
 }
 
 char display_internal_xtpage(xad_t xad)
@@ -846,8 +921,7 @@ char display_internal_xtpage(xad_t xad)
 		if (xtree->header.flag & BT_LEAF)
 			result = display_leaf_xads(xtree->xad, xtree->header.nextindex, &changed);
 		else
-			result = display_internal_xads(xtree->xad,
-						       xtree->header.nextindex, &changed);
+			result = display_internal_xads(xtree->xad, xtree->header.nextindex, &changed);
 
 		if (changed) {
 
