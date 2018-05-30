@@ -305,6 +305,38 @@ static int64_t calc_realblocks(int64_t ExpectedBlocks)
   return RealBlocks;
 }
 
+static int64_t CountXADBlocks(xtpage_t *xtree)
+{
+  xtpage_t              xtree_area2;
+  xtpage_t             *xtree2 = &xtree_area2;
+  int64_t               nr_blocks = 0;
+  int                   i;
+
+  nr_blocks = xtree->header.self.len;
+  if ((xtree->header.flag & BT_LEAF) == 0)
+  {
+    for (i = 2; i < xtree->header.nextindex; i++)
+    {
+      int64_t xtpage_address2 = addressXAD(&(xtree->xad[i])) * bsize;
+
+      if (xRead(xtpage_address2, sizeof (xtpage_t), (char *) xtree2) == 0)
+      {
+        /* swap if on big endian machine */
+        ujfs_swap_xtpage_t(xtree2);
+
+        nr_blocks += CountXADBlocks(xtree2);
+      }
+      else
+        fputs("xtree: error reading xtpage\n\n", stderr);
+    }
+  }
+  else
+  {
+    for (i = 2; i < xtree->header.nextindex; i++)
+      nr_blocks += xtree->xad[i].len;
+  }
+  return nr_blocks;
+}
 
 static bool CheckInodeXTree(unsigned int InodeNr, int64_t *NrBlocks)
 {
@@ -312,7 +344,7 @@ static bool CheckInodeXTree(unsigned int InodeNr, int64_t *NrBlocks)
   xtpage_t             *xtree, *xtree2 = &xtree_area2;
   int64_t               nr_blocks = 0;
   bool                  ret = TRUE;
-  int                   i, j;
+  int                   i;
 
   if ((cur_inode.di_mode & IFMT) != IFDIR)
   {
@@ -336,20 +368,14 @@ static bool CheckInodeXTree(unsigned int InodeNr, int64_t *NrBlocks)
             xtree->xad[i].off2 = xtree2->xad[2].off2;
             ret = FALSE;
           }
-
-          for (j = 2; j < xtree2->header.nextindex; j++)
-            nr_blocks += xtree2->xad[j].len;
+          nr_blocks += CountXADBlocks(xtree2);
         }
         else
           fputs("xtree: error reading xtpage\n\n", stderr);
-        nr_blocks += xtree->xad[i].len;
       }
     }
     else
-    {
-      for (i = 2; i < xtree->header.nextindex; i++)
-        nr_blocks += xtree->xad[i].len;
-    }
+      nr_blocks = CountXADBlocks(xtree);
   }
   if (NrBlocks) *NrBlocks = nr_blocks;
   return ret;
