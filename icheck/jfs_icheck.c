@@ -272,15 +272,15 @@ static bool fix_inode(int64_t used_blks)
   }
 }
 
-static int64_t calc_realblocks(unsigned int NrXADBlocks)
+static int64_t calc_realblocks(int64_t ExpectedBlocks)
 {
-  int64_t               CurrentBlocks, ExpectedBlocks, RealBlocks;
+  int64_t               CurrentBlocks, RealBlocks;
   int                   i;
 
   // RealBlocks berechnen
   CurrentBlocks = cur_inode.di_nblocks;
-  ExpectedBlocks = ((cur_inode.di_size + bsize-1) / bsize) + NrXADBlocks;
   RealBlocks = CurrentBlocks;
+//  ExpectedBlocks = ((cur_inode.di_size + bsize-1) / bsize) + NrXADBlocks;
 
   // bei zu starker Abweichung, probiere +/- 1048576 (und Vielfache)
   if ((RealBlocks < ExpectedBlocks) || ((RealBlocks > ExpectedBlocks /*+ 1024*/) && (RealBlocks >= 0x010000000)))
@@ -306,12 +306,13 @@ static int64_t calc_realblocks(unsigned int NrXADBlocks)
 }
 
 
-static bool CheckInodeXTree(unsigned int InodeNr, unsigned int *NrXADBlocks)
+static bool CheckInodeXTree(unsigned int InodeNr, int64_t *NrBlocks)
 {
   xtpage_t              xtree_area2;
   xtpage_t             *xtree, *xtree2 = &xtree_area2;
+  int64_t               nr_blocks = 0;
   bool                  ret = TRUE;
-  int                   i, xads = 0;
+  int                   i, j;
 
   if ((cur_inode.di_mode & IFMT) != IFDIR)
   {
@@ -335,14 +336,22 @@ static bool CheckInodeXTree(unsigned int InodeNr, unsigned int *NrXADBlocks)
             xtree->xad[i].off2 = xtree2->xad[2].off2;
             ret = FALSE;
           }
+
+          for (j = 2; j < xtree2->header.nextindex; j++)
+            nr_blocks += xtree2->xad[j].len;
         }
         else
           fputs("xtree: error reading xtpage\n\n", stderr);
-        xads++;
+        nr_blocks += xtree->xad[i].len;
       }
     }
+    else
+    {
+      for (i = 2; i < xtree->header.nextindex; i++)
+        nr_blocks += xtree->xad[i].len;
+    }
   }
-  if (NrXADBlocks) *NrXADBlocks = xads;
+  if (NrBlocks) *NrBlocks = nr_blocks;
   return ret;
 }
 
@@ -350,7 +359,7 @@ tReturnCode CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlock
 {
   bool                  RealBlocksProvided = (RealBlocks > 0);
   bool                  TreeOK = TRUE;
-  unsigned int          NrXADBlocks = 0;
+  int64_t               NrBlocks = 0;
   tReturnCode           ret = rc_UNKNOWN;
 
   bool DeviceOpened = (!fp) ? TRUE : FALSE;
@@ -364,11 +373,11 @@ tReturnCode CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlock
       {
         if ((SizeOfFile) && (*SizeOfFile == 0)) *SizeOfFile = cur_inode.di_size;
 
-        TreeOK = CheckInodeXTree(InodeNr, &NrXADBlocks);
+        TreeOK = CheckInodeXTree(InodeNr, &NrBlocks);
 
         // tatsächliche Blockanzahl berechnen
         if (!RealBlocksProvided)
-          RealBlocks = calc_realblocks(NrXADBlocks);
+          RealBlocks = calc_realblocks(NrBlocks);
 
         // mit der eingetragenen Blockzahl vergleichen und Ergebnis ausgeben
         int64_t cur_blks = cur_inode.di_nblocks;
