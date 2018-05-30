@@ -59,8 +59,8 @@
 #include "jfs_imap.h"
 #include "jfs_superblock.h"
 
-#define MY_VERSION  "0.4"
-#define MY_DATE     "2017-02-26"
+#define MY_VERSION  "0.5"
+#define MY_DATE     "2018-05-31"
 
 #define setReturnVal(x)  if (return_value <= x) return_value = x
 
@@ -272,18 +272,18 @@ static bool fix_inode(int64_t used_blks)
   }
 }
 
-static int64_t calc_realblocks()
+static int64_t calc_realblocks(unsigned int NrXADBlocks)
 {
   int64_t               CurrentBlocks, ExpectedBlocks, RealBlocks;
   int                   i;
 
   // RealBlocks berechnen
   CurrentBlocks = cur_inode.di_nblocks;
-  ExpectedBlocks = ((cur_inode.di_size + bsize-1) / bsize);
+  ExpectedBlocks = ((cur_inode.di_size + bsize-1) / bsize) + NrXADBlocks;
   RealBlocks = CurrentBlocks;
 
   // bei zu starker Abweichung, probiere +/- 1048576 (und Vielfache)
-  if ((RealBlocks < ExpectedBlocks) || ((RealBlocks > ExpectedBlocks + 1024) && (RealBlocks >= 0x010000000)))
+  if ((RealBlocks < ExpectedBlocks) || ((RealBlocks > ExpectedBlocks /*+ 1024*/) && (RealBlocks >= 0x010000000)))
     for (i = 1; ((RealBlocks < ExpectedBlocks) || (RealBlocks >= 0x010000000)) && (i <= 10); i++)
     {
       RealBlocks = RealBlocks + 1048576;
@@ -297,7 +297,7 @@ static int64_t calc_realblocks()
   }
 
   // wenn immernoch starke Abweichung, lieber wieder den "Original" berechneten Wert nehmen
-  if ((RealBlocks < ExpectedBlocks) || (RealBlocks > ExpectedBlocks + 1024))
+  if ((RealBlocks < ExpectedBlocks) || (RealBlocks > ExpectedBlocks /*+ 1024*/))
   {
     if(!opt_quiet) printf("~");
     RealBlocks = ExpectedBlocks;
@@ -306,24 +306,24 @@ static int64_t calc_realblocks()
 }
 
 
-static bool CheckInodeXTree(unsigned int InodeNr)
+static bool CheckInodeXTree(unsigned int InodeNr, unsigned int *NrXADBlocks)
 {
   xtpage_t              xtree_area2;
   xtpage_t             *xtree, *xtree2 = &xtree_area2;
   bool                  ret = TRUE;
-  int                   i;
+  int                   i, xads = 0;
 
   if ((cur_inode.di_mode & IFMT) != IFDIR)
   {
     xtree = (xtpage_t *) & (cur_inode.di_btroot);
 
-	if ((xtree->header.flag & BT_LEAF) == 0)
+    if ((xtree->header.flag & BT_LEAF) == 0)
     {
       for (i = 2; i < xtree->header.nextindex; i++)
       {
-	    int64_t xtpage_address2 = addressXAD(&(xtree->xad[i])) * bsize;
+        int64_t xtpage_address2 = addressXAD(&(xtree->xad[i])) * bsize;
 
-	    if (xRead(xtpage_address2, sizeof (xtpage_t), (char *) xtree2) == 0)
+        if (xRead(xtpage_address2, sizeof (xtpage_t), (char *) xtree2) == 0)
         {
           /* swap if on big endian machine */
           ujfs_swap_xtpage_t(xtree2);
@@ -338,9 +338,11 @@ static bool CheckInodeXTree(unsigned int InodeNr)
         }
         else
           fputs("xtree: error reading xtpage\n\n", stderr);
+        xads++;
       }
     }
   }
+  if (NrXADBlocks) *NrXADBlocks = xads;
   return ret;
 }
 
@@ -348,6 +350,7 @@ tReturnCode CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlock
 {
   bool                  RealBlocksProvided = (RealBlocks > 0);
   bool                  TreeOK = TRUE;
+  unsigned int          NrXADBlocks = 0;
   tReturnCode           ret = rc_UNKNOWN;
 
   bool DeviceOpened = (!fp) ? TRUE : FALSE;
@@ -361,11 +364,11 @@ tReturnCode CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlock
       {
         if ((SizeOfFile) && (*SizeOfFile == 0)) *SizeOfFile = cur_inode.di_size;
 
-        TreeOK = CheckInodeXTree(InodeNr);
+        TreeOK = CheckInodeXTree(InodeNr, &NrXADBlocks);
 
         // tatsächliche Blockanzahl berechnen
         if (!RealBlocksProvided)
-          RealBlocks = calc_realblocks();
+          RealBlocks = calc_realblocks(NrXADBlocks);
 
         // mit der eingetragenen Blockzahl vergleichen und Ergebnis ausgeben
         int64_t cur_blks = cur_inode.di_nblocks;
