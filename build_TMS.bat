@@ -6,7 +6,8 @@ cd build
 set PATH=%TFROOT%\gccForTMS\crosstool\bin;%TFROOT%\gccForTMS\crosstool\mipsel-linux-uclibc\bin;%TFROOT%\Cygwin\bin;C:\Programme\Cygwin\bin
 set CFLAGS=-pipe -Os -static -W -Wall
 set LDFLAGS=-static
-rem bash ../configure --host=mipsel-linux-uclibc
+rem bash ../configure --host=mipsel-linux-uclibc CFLAGS="-Os -static -W -Wall" LDFLAGS="-static"
+rem sed -i 's/^DEFS=/DEFS=-Dfsck_BUILD/' fsck/Makefile
 copy /y ..\fsck_Makefile fsck\Makefile
 copy /y ..\icheck\*.h ..\fsck\
 copy /y ..\icheck\*.c ..\fsck\
