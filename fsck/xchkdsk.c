@@ -36,6 +36,7 @@
 #include "message.h"
 #include "super.h"
 #include "utilsubs.h"
+#include "../icheck/jfs_icheck.h"
 
 int64_t ondev_jlog_byte_offset;
 
@@ -78,6 +79,12 @@ char *program_name;
 
 struct tm *fsck_DateTime = NULL;
 char time_stamp[20];
+
+int mc_parmFirstStepsOnly = 0, mc_parmFixWrongnblocks = 0, mc_parmInodesOnly = 0;
+char mc_parmListFile[512];
+int  mc_NrDefectFiles = 0, mc_NrMarkedFiles = 0, mc_maxMarkedFiles = 0;
+unsigned long *mc_CheckInodes; int mc_NrCheckInodes;
+tInodeData *mc_MarkedFiles = NULL;
 
 /* + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + +
  *
@@ -200,6 +207,19 @@ int exit_value = FSCK_OK;
  *                         version information
  *                         print version information and exit
  *
+ *                         [ -r ]
+ *                         if nblocks value differs from real block number
+ *                         repair the value in inode instead of releasing
+ *
+ *                         [ -q ]
+ *                         quick: perform only the first 4 steps
+ *
+ *                         [ -i ]
+ *                         limit the checking to specified inodes
+ *
+ *                         [ -L <filename> ]
+ *                         write corrupted inodes to a list file
+ *
  * RETURNS:
  *      success:                   FSCK_OK (0)
  *      log successfully replayed: FSCK_CORRECTED (1)
@@ -210,9 +230,22 @@ int exit_value = FSCK_OK;
  */
 int main(int argc, char **argv)
 {
-
 	int rc = FSCK_OK;
 	time_t Current_Time;
+
+	if (argc && **argv)
+		program_name = *argv;
+	else
+		program_name = "jfs_fsck";
+
+	/*
+	 * multi-use binary: call icheck if program name
+	 * is "jfs_icheck" or first param "icheck"
+	 */
+	if (strstr(program_name, "jfs_icheck") != 0)
+		return icheck_main(argc, argv);
+	else if (argc && **argv && (argc >= 2) && strncmp(argv[1], "icheck", 6) == 0)
+		return icheck_main(argc-1, &argv[1]);
 
 	/*
 	 * some basic initializations
@@ -226,15 +259,12 @@ int main(int argc, char **argv)
 	       agg_recptr, bmap_recptr);
 #endif
 
-	if (argc && **argv)
-		program_name = *argv;
-	else
-		program_name = "jfs_fsck";
-
-	printf("%s version %s, %s\n", program_name, VERSION, JFSUTILS_DATE);
+	printf("%s version %s-TF, %s\n", program_name, VERSION, JFSUTILS_DATE);
+	printf("(modified for Topfield PVRs by T.Reichardt & C. Wuensch)\n");
 
 	wsp_dynstg_action = dynstg_unknown;
 	wsp_dynstg_object = dynstg_unknown;
+
 
 	/* init workspace aggregate record
 	 * (the parms will be recorded in it)
@@ -341,7 +371,7 @@ int main(int argc, char **argv)
 		agg_recptr->processing_readwrite = 0;
 	}
 	rc = phase1_processing();
-	if (agg_recptr->fsck_is_done)
+	if (agg_recptr->fsck_is_done || mc_parmInodesOnly)
 		goto phases_complete;
 	rc = phase2_processing();
 	if (agg_recptr->fsck_is_done)
@@ -350,8 +380,19 @@ int main(int argc, char **argv)
 	if (agg_recptr->fsck_is_done)
 		goto phases_complete;
 	rc = phase4_processing();
-	if (agg_recptr->fsck_is_done)
+//	fflush(stdout);
+	if (agg_recptr->fsck_is_done || mc_parmFirstStepsOnly || (mc_NrDefectFiles > 0 && (mc_parmFixWrongnblocks || !agg_recptr->processing_readonly)))
+	{
+		if ((mc_NrDefectFiles > 0) && !agg_recptr->processing_readonly)
+		{
+			fsck_send_msg(mc_CHECKABORTED);
+			// Disable write processing now
+			agg_recptr->processing_readonly = 1;
+			agg_recptr->processing_readwrite = 0;
+			goto phases_complete;
+		}
 		goto phases_complete;
+	}
 	rc = phase5_processing();
 	if (agg_recptr->fsck_is_done)
 		goto phases_complete;
@@ -366,7 +407,10 @@ int main(int argc, char **argv)
 		goto phases_complete;
 	rc = phase9_processing();
 
-      phases_complete:
+phases_complete:
+	fsck_send_msg(mc_FINISHED);
+	if ((mc_NrDefectFiles > 0) /*&& !agg_recptr->processing_readonly*/)
+		agg_recptr->ag_dirty = 1;
 	if (!agg_recptr->superblk_ok) {
 		/* superblock is bad */
 		exit_value = FSCK_ERRORS_UNCORRECTED;
@@ -378,7 +422,8 @@ int main(int argc, char **argv)
 		/* not fleeing an error and not making a speedy exit */
 
 		/* finish up and display some information */
-		rc = final_processing();
+		if (!mc_parmFirstStepsOnly && !mc_parmInodesOnly && mc_NrDefectFiles == 0)
+			rc = final_processing();
 
 		/* flush the I/O buffers to complete any pending writes */
 		if (rc == FSCK_OK) {
@@ -498,6 +543,30 @@ int main(int argc, char **argv)
 			close_volume();
 		}
 	}
+
+	/*
+	 * Run jfs_icheck to correct damaged inodes (MC)
+	 */
+	if(mc_parmFixWrongnblocks && (mc_NrMarkedFiles > 0))
+	{
+		fprintf(stdout, msg_defs[mc_PHASEi].msg_txt);
+
+		int icheck_return  = CheckInodeList(Vol_Label, mc_MarkedFiles, &mc_NrMarkedFiles, mc_parmFixWrongnblocks, 0);
+		if (icheck_return == rc_ALLFILESOKAY || icheck_return == rc_ALLFILESFIXED)  // alle Dateien ok, oder alle gefixt
+			fprintf(stdout, msg_defs[mc_ICHECKOKAY].msg_txt, mc_NrMarkedFiles, icheck_return);
+		else
+			fprintf(stdout, msg_defs[mc_ICHECKERROR].msg_txt, icheck_return);
+	}
+
+	if(mc_parmListFile[0])
+	{
+		if (!WriteListFile(mc_parmListFile, mc_MarkedFiles, mc_NrMarkedFiles))
+			fprintf(stdout, msg_defs[mc_LISTWRITEERROR].msg_txt, mc_parmListFile);
+	}
+    
+	if (mc_MarkedFiles) free(mc_MarkedFiles);
+	if (mc_CheckInodes) free(mc_CheckInodes);
+	fprintf(stdout, "**Finished all.\n");
 
 	if (!agg_recptr->stdout_redirected) {
 		/* end the "running" indicator */
@@ -1199,7 +1268,7 @@ int report_problems_setup_repairs()
 			if (this_inorec->ignore_alloc_blks) {
 				/* corrupt tree */
 				if (this_inorec->inode_type == file_inode) {
-					fsck_send_msg(fsck_BADINODATAFORMAT);
+					fsck_send_msg(fsck_BADINODATAFORMAT, 1);
 				} else if (this_inorec->inode_type ==
 					   directory_inode)
 				{
@@ -1211,7 +1280,7 @@ int report_problems_setup_repairs()
 			if (this_inorec->inline_data_err) {
 				/* invalid inline data spec */
 				if (this_inorec->inode_type == file_inode) {
-					fsck_send_msg(fsck_BADINODATAFORMAT);
+					fsck_send_msg(fsck_BADINODATAFORMAT, 2);
 				} else if (this_inorec->inode_type ==
 					   directory_inode)
 				{
@@ -1500,7 +1569,9 @@ int initial_processing(int argc, char **argv)
 			       "mounted file system\nor on a file system other "
 			       "than JFS\nmay cause SEVERE file system damage."
 			       "\n\n", Vol_Label);
-			ask_continue();
+//			ask_continue();
+			printf("Check aborted.\n");
+			exit(exit_value);
 			break;
 
 		default:
@@ -1674,7 +1745,8 @@ void parse_parms(int argc, char **argv)
 	int c;
 	char *device_name = NULL;
 	FILE *file_p = NULL;
-	char *short_opts = "adfj:noprvVy";
+	mc_parmListFile[0] = '\0';
+	char *short_opts = "adfj:noprvVyrqiL:";
 	struct option long_opts[] = {
 		{ "omit_journal_replay", no_argument, NULL, 'o'},
 		{ "replay_journal_only", no_argument, NULL, 'J'},
@@ -1683,7 +1755,7 @@ void parse_parms(int argc, char **argv)
 	while ((c = getopt_long(argc, argv, short_opts, long_opts, NULL))
 		!= EOF) {
 		switch (c) {
-		case 'r':
+//		case 'r':
 		/*************************
 		 * interactive autocheck *
 		 *************************/
@@ -1788,6 +1860,39 @@ void parse_parms(int argc, char **argv)
 			 */
 			break;
 
+		case 'r':
+		/******************
+		* if nblocks value differs from real block number
+		* repair the value in inode instead of releasing
+ 		 ******************/
+			mc_parmFixWrongnblocks = 1;
+//			agg_recptr->parm_options[UFS_CHKDSK_LEVEL0] = -1;  // read-only!
+			break;
+
+		case 'q':
+		/******************
+		* quick: perform only the first 4 steps
+		 ******************/
+			mc_parmFirstStepsOnly = 1;
+//			agg_recptr->parm_options[UFS_CHKDSK_LEVEL0] = -1;  // read-only!
+			break;
+
+		case 'i':
+		/******************
+		* limit the checking to specified inodes
+		 ******************/
+			mc_parmInodesOnly = 1;
+			agg_recptr->parm_options[UFS_CHKDSK_LEVEL0] = -1;  // read-only!
+			break;
+
+		case 'L':
+		/***********************************
+		 * write corrupted inodes to a list file *
+		 ***********************************/
+			strncpy(mc_parmListFile, optarg, sizeof (mc_parmListFile) - 1);
+			mc_parmListFile[sizeof(mc_parmListFile) - 1] = '\0';
+			break;
+
 		default:
 			fsck_usage();
 		}
@@ -1802,11 +1907,10 @@ void parse_parms(int argc, char **argv)
 		fsck_usage();
 	}
 
-	if (optind != argc - 1) {
+	if (argc <= optind) {
 		printf("\nError: Device not specified or command format error\n");
 		fsck_usage();
 	}
-
 	device_name = argv[optind];
 
 	file_p = fopen(device_name, "r");
@@ -1818,6 +1922,29 @@ void parse_parms(int argc, char **argv)
 	}
 
 	Vol_Label = device_name;
+
+	if (mc_parmFirstStepsOnly || mc_parmFixWrongnblocks)
+	{
+		if ((agg_recptr->parm_options[UFS_CHKDSK_LEVEL3] || agg_recptr->parm_options[UFS_CHKDSK_LEVEL2]) && !agg_recptr->parm_options[UFS_CHKDSK_LEVEL0])
+			mc_parmFirstStepsOnly = 0;
+		else
+			agg_recptr->parm_options[UFS_CHKDSK_LEVEL0] = -1;
+	}
+
+	if (mc_parmInodesOnly && (argc > optind + 1))
+	{
+		mc_CheckInodes = (unsigned long*) malloc((argc - optind - 1) * sizeof(unsigned long));
+		if (mc_CheckInodes)
+		{
+			int i;
+			for(i = 0; i < argc - optind - 1; i++)
+			{
+				mc_CheckInodes[mc_NrCheckInodes] = strtoul(argv[optind + 1 + i], NULL, 10);
+				if (mc_CheckInodes[mc_NrCheckInodes] > 0) mc_NrCheckInodes++;
+			}
+		}
+	}
+	mc_parmInodesOnly = (mc_NrCheckInodes > 0);
 
 	return;
 }
@@ -2053,6 +2180,9 @@ int phase1_processing()
 	agg_recptr->ea_buf_ptr = NULL;
 	agg_recptr->ea_buf_length = 0;
 	agg_recptr->vlarge_current_use = NOT_CURRENTLY_USED;
+
+	if (mc_NrDefectFiles > 0)
+		fsck_send_msg(mc_SUMMARYDEFECTFILES, mc_NrDefectFiles, mc_NrMarkedFiles);
 
       p1_exit:
 	if (p1_rc != FSCK_OK) {
@@ -2938,6 +3068,7 @@ int validate_fs_inodes()
 	int which_it = FILESYSTEM_I;	/* in release 1 there is only 1 fileset */
 	struct fsck_ino_msg_info ino_msg_info;
 	struct fsck_ino_msg_info *msg_info_ptr;
+	int DoCheck = 0, i;
 
 	msg_info_ptr = &ino_msg_info;
 	/* all fileset owned */
@@ -2949,22 +3080,38 @@ int validate_fs_inodes()
 	 */
 	vfi_rc = inode_get_first_fs(which_it, &ino_idx, &ino_ptr);
 	while ((vfi_rc == FSCK_OK) && (ino_ptr != NULL)) {
-		/* no fatal errors and haven't seen the last inode */
-		if (inode_is_in_use(ino_ptr, (uint32_t) ino_idx)) {
-			/* inode is in use */
-			vfi_rc =
-			    validate_record_fileset_inode((uint32_t) ino_idx,
-							  ino_idx, ino_ptr,
-							  msg_info_ptr);
-		} else {
-			/* inode is allocated but is not in use */
-			if (!agg_recptr->avail_inode_found) {
-				/*
-				 * this is the first allocated, available
-				 * inode we've seen all day
-				 */
-				agg_recptr->avail_inonum = (uint32_t) ino_idx;
-				agg_recptr->avail_inode_found = 1;
+		if(mc_parmInodesOnly)
+		{
+			DoCheck = 0;
+			for(i = 0; i < mc_NrCheckInodes; i++)
+			{
+				if(ino_idx == mc_CheckInodes[i])
+				{
+					DoCheck = 1;
+					break;
+				}
+			}
+		}
+      
+		if(!mc_parmInodesOnly || DoCheck)
+		{
+			/* no fatal errors and haven't seen the last inode */
+			if (inode_is_in_use(ino_ptr, (uint32_t) ino_idx)) {
+				/* inode is in use */
+				vfi_rc =
+				    validate_record_fileset_inode((uint32_t) ino_idx,
+								  ino_idx, ino_ptr,
+								  msg_info_ptr);
+			} else {
+				/* inode is allocated but is not in use */
+				if (!agg_recptr->avail_inode_found) {
+					/*
+					 * this is the first allocated, available
+					 * inode we've seen all day
+					 */
+					agg_recptr->avail_inonum = (uint32_t) ino_idx;
+					agg_recptr->avail_inode_found = 1;
+				}
 			}
 		}
 		if (vfi_rc == FSCK_OK) {
@@ -3077,7 +3224,7 @@ void ask_continue()
 
 void fsck_usage()
 {
-	printf("\nUsage:  %s [-afnpvV] [-j journal_device] [--omit_journal_replay] "
+	printf("\nUsage:  %s [-afnpvVrqi] [-L file] [-j journal_device] [--omit_journal_replay] "
 	       "[--replay_journal_only] device\n", program_name);
 	printf("\nEmergency help:\n"
 	       " -a                 Automatic repair.\n"
@@ -3087,6 +3234,10 @@ void fsck_usage()
 	       " -p                 Automatic repair.\n"
 	       " -v                 Be verbose.\n"
 	       " -V                 Print version information only.\n"
+	       " -r                 Repair inode if nblocks has incorrect value (writes!).\n"
+	       " -q                 Quick: Perform only the first 4 steps (ro, if not -a or -f).\n"
+	       " -i                 Check only the specified inodes (read-only).\n"
+	       " -L filename        Write corrupted inodes to a list file.\n"
 	       " --omit_journal_replay    Omit transaction log replay.\n"
 	       " --replay_journal_only    Only replay the transaction log.\n");
 	exit(FSCK_USAGE_ERROR);

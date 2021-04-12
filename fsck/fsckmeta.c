@@ -3544,13 +3544,14 @@ int verify_metadata_data(struct dinode *inoptr,
 		/* no problems found in the tree yet */
 		if (inoptr->di_nblocks != agg_recptr->this_inode.all_blks) {
 			/* number of blocks is wrong.  tree must be bad */
-#ifdef _JFS_DEBUG
-			printf("bad num blocks: agg ino: %ld(t)  "
+printf("CW-DEBUG: in " __FILE__ ", line %d: number of blocks is wrong.\n", __LINE__);
+//#ifdef _JFS_DEBUG
+			printf("bad num blocks: agg ino: %u(t)  "
 			       "di_nblocks = %lld(t)  "
 			       "this_inode.all_blks = %lld(t)\n",
 			       inoidx, inoptr->di_nblocks,
 			       agg_recptr->this_inode.all_blks);
-#endif
+//#endif
 			inorecptr->selected_to_rls = 1;
 			inorecptr->ignore_alloc_blks = 1;
 			agg_recptr->corrections_needed = 1;
@@ -3577,13 +3578,14 @@ int verify_metadata_data(struct dinode *inoptr,
 				 * object size (in bytes) is wrong.
 				 * tree must be bad.
 				 */
-#ifdef _JFS_DEBUG
-				printf("bad object size: agg ino: %ld(t)  "
+printf("CW-DEBUG: in " __FILE__ ", line %d: object size (in bytes) is wrong\n", __LINE__);
+//#ifdef _JFS_DEBUG
+				printf("bad object size: agg ino: %u(t)  "
 				       "minsize = %lld(t)  maxsize = %lld(t)  "
 				       "di_size = %lld(t)\n",
 				       inoidx, min_size, max_size,
 				       inoptr->di_size);
-#endif
+//#endif
 				inorecptr->selected_to_rls = 1;
 				inorecptr->ignore_alloc_blks = 1;
 				agg_recptr->corrections_needed = 1;

@@ -1,5 +1,5 @@
 
-INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/libfs
+INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/libfs -I$(top_srcdir)/icheck
 LDADD = ../libfs/libfs.a -luuid
 
 sbin_PROGRAMS = jfs_fsck
@@ -11,7 +11,8 @@ EXTRA_DIST = $(man_MANS)
 jfs_fsck_SOURCES = fsckbmap.c fsckconn.c fsckdire.c fsckdtre.c fsckea.c \
           fsckimap.c fsckino.c fsckmeta.c fsckpfs.c  dirindex.c \
           fsckwsp.c fsckxtre.c xchkdsk.c fsckruns.c fsck_message.c \
-          fsckpfs.h xchkdsk.h xfsck.h xfsckint.h
+          fsckpfs.h xchkdsk.h xfsck.h xfsckint.h \
+          jfs_icheck.c jfs_icheck.h lib.c lib.h
 
 install-exec-hook:
 	$(LN) -f $(DESTDIR)$(sbindir)/jfs_fsck $(DESTDIR)$(sbindir)/fsck.jfs

@@ -1,0 +1,92 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\fsck\dirindex.c" />
+    <ClCompile Include="..\fsck\fsckbmap.c" />
+    <ClCompile Include="..\fsck\fsckconn.c" />
+    <ClCompile Include="..\fsck\fsckdire.c" />
+    <ClCompile Include="..\fsck\fsckdtre.c" />
+    <ClCompile Include="..\fsck\fsckea.c" />
+    <ClCompile Include="..\fsck\fsckimap.c" />
+    <ClCompile Include="..\fsck\fsckino.c" />
+    <ClCompile Include="..\fsck\fsckmeta.c" />
+    <ClCompile Include="..\fsck\fsckpfs.c" />
+    <ClCompile Include="..\fsck\fsckruns.c" />
+    <ClCompile Include="..\fsck\fsckwsp.c" />
+    <ClCompile Include="..\fsck\fsckxtre.c" />
+    <ClCompile Include="..\fsck\fsck_message.c" />
+    <ClCompile Include="..\fsck\xchkdsk.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\fsck\fsckpfs.h" />
+    <ClInclude Include="..\fsck\xchkdsk.h" />
+    <ClInclude Include="..\fsck\xfsck.h" />
+    <ClInclude Include="..\fsck\xfsckint.h" />
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{2191928D-E6C0-4E58-8725-31DB2AF39CDF}</ProjectGuid>
+    <Keyword>MakeFileProj</Keyword>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Makefile</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Makefile</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <NMakeBuildCommandLine>..\source\build_TMS.bat /debug /quiet</NMakeBuildCommandLine>
+    <NMakeCleanCommandLine>del /Q bin obj</NMakeCleanCommandLine>
+    <NMakeReBuildCommandLine>..\source\build_TMS.bat /debug /quiet</NMakeReBuildCommandLine>
+    <NMakePreprocessorDefinitions>__GNUC__;FULLDEBUG;fsck_BUILD;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
+    <ExecutablePath />
+    <IncludePath>..;../include;../libfs;$(TFRoot)\gccForTMS\crosstool\include;$(TFRoot)\Cygwin_mini\lib\gcc\i686-pc-cygwin\3.4.4\include;$(TFRoot)\gccForTMS\crosstool\lib\gcc\mipsel-linux-uclibc\3.4.6\include</IncludePath>
+    <ReferencePath />
+    <LibraryPath>
+    </LibraryPath>
+    <SourcePath />
+    <ExcludePath>$(ExcludePath)</ExcludePath>
+    <NMakeOutput>Erfolg.exe</NMakeOutput>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <NMakeBuildCommandLine>..\source\build_TMS.bat /quiet</NMakeBuildCommandLine>
+    <NMakeCleanCommandLine>del /Q bin obj</NMakeCleanCommandLine>
+    <NMakeReBuildCommandLine>..\source\build_TMS.bat /quiet</NMakeReBuildCommandLine>
+    <NMakePreprocessorDefinitions>__GNUC__;fsck_BUILD;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
+    <ExecutablePath />
+    <IncludePath>..;../include;../libfs;$(TFRoot)\gccForTMS\crosstool\include;$(TFRoot)\Cygwin_mini\lib\gcc\i686-pc-cygwin\3.4.4\include;$(TFRoot)\gccForTMS\crosstool\lib\gcc\mipsel-linux-uclibc\3.4.6\include</IncludePath>
+    <ReferencePath />
+    <LibraryPath>
+    </LibraryPath>
+    <SourcePath />
+    <ExcludePath>$(ExcludePath)</ExcludePath>
+    <NMakeOutput>Erfolg.exe</NMakeOutput>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

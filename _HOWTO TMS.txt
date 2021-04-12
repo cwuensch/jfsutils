@@ -1,4 +1,8 @@
+* set TFROOT=C:\sw\prgm\Topfield
+* set PATH=%TFROOT%\gccForTMS\crosstool\bin;C:\sw\OS\cygwin\bin
+* set LDFLAGS="-static"
+* bash
 * mkdir build
 * cd build
-* set LDFLAGS="-static" ../configure --host=mipsel-linux-uclibc
+* ../configure --host=mipsel-linux-uclibc
 * make

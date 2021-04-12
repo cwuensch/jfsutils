@@ -1,5 +1,5 @@
 
-SUBDIRS = libfs include fsck fscklog logdump mkfs tune xpeek
+SUBDIRS = libfs include fsck fscklog logdump mkfs tune xpeek icheck
 
 EXTRA_DIST = jfsutils.spec.in
 

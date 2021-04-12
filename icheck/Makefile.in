@@ -32,8 +32,8 @@ POST_INSTALL = :
 NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
-sbin_PROGRAMS = jfs_fsck$(EXEEXT)
-subdir = fsck
+sbin_PROGRAMS = jfs_icheck$(EXEEXT)
+subdir = icheck
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.in
@@ -45,15 +45,10 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(sbindir)" "$(DESTDIR)$(man8dir)"
 PROGRAMS = $(sbin_PROGRAMS)
-am_jfs_fsck_OBJECTS = fsckbmap.$(OBJEXT) fsckconn.$(OBJEXT) \
-	fsckdire.$(OBJEXT) fsckdtre.$(OBJEXT) fsckea.$(OBJEXT) \
-	fsckimap.$(OBJEXT) fsckino.$(OBJEXT) fsckmeta.$(OBJEXT) \
-	fsckpfs.$(OBJEXT) dirindex.$(OBJEXT) fsckwsp.$(OBJEXT) \
-	fsckxtre.$(OBJEXT) xchkdsk.$(OBJEXT) fsckruns.$(OBJEXT) \
-	fsck_message.$(OBJEXT) jfs_icheck.$(OBJEXT) lib.$(OBJEXT)
-jfs_fsck_OBJECTS = $(am_jfs_fsck_OBJECTS)
-jfs_fsck_LDADD = $(LDADD)
-jfs_fsck_DEPENDENCIES = ../libfs/libfs.a
+am_jfs_icheck_OBJECTS = jfs_icheck.$(OBJEXT) lib.$(OBJEXT)
+jfs_icheck_OBJECTS = $(am_jfs_icheck_OBJECTS)
+jfs_icheck_LDADD = $(LDADD)
+jfs_icheck_DEPENDENCIES = ../libfs/libfs.a
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -62,8 +57,8 @@ COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 CCLD = $(CC)
 LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(jfs_fsck_SOURCES)
-DIST_SOURCES = $(jfs_fsck_SOURCES)
+SOURCES = $(jfs_icheck_SOURCES)
+DIST_SOURCES = $(jfs_icheck_SOURCES)
 am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
 am__vpath_adj = case $$p in \
     $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
@@ -182,16 +177,11 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/libfs -I$(top_srcdir)/icheck
+INCLUDES = -I$(top_srcdir)/include -I$(top_srcdir)/libfs
 LDADD = ../libfs/libfs.a -luuid
-man_MANS = jfs_fsck.8
+man_MANS = jfs_icheck.8
 EXTRA_DIST = $(man_MANS)
-jfs_fsck_SOURCES = fsckbmap.c fsckconn.c fsckdire.c fsckdtre.c fsckea.c \
-          fsckimap.c fsckino.c fsckmeta.c fsckpfs.c  dirindex.c \
-          fsckwsp.c fsckxtre.c xchkdsk.c fsckruns.c fsck_message.c \
-          fsckpfs.h xchkdsk.h xfsck.h xfsckint.h \
-          jfs_icheck.c jfs_icheck.h lib.c lib.h
-
+jfs_icheck_SOURCES = jfs_icheck.c lib.c
 all: all-am
 
 .SUFFIXES:
@@ -205,9 +195,9 @@ $(srcdir)/Makefile.in: @MAINTAINER_MODE_TRUE@ $(srcdir)/Makefile.am  $(am__confi
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu fsck/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --gnu icheck/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --gnu fsck/Makefile
+	  $(AUTOMAKE) --gnu icheck/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -263,9 +253,9 @@ uninstall-sbinPROGRAMS:
 
 clean-sbinPROGRAMS:
 	-test -z "$(sbin_PROGRAMS)" || rm -f $(sbin_PROGRAMS)
-jfs_fsck$(EXEEXT): $(jfs_fsck_OBJECTS) $(jfs_fsck_DEPENDENCIES) 
-	@rm -f jfs_fsck$(EXEEXT)
-	$(LINK) $(jfs_fsck_OBJECTS) $(jfs_fsck_LDADD) $(LIBS)
+jfs_icheck$(EXEEXT): $(jfs_icheck_OBJECTS) $(jfs_icheck_DEPENDENCIES) 
+	@rm -f jfs_icheck$(EXEEXT)
+	$(LINK) $(jfs_icheck_OBJECTS) $(jfs_icheck_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -273,23 +263,8 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dirindex.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsck_message.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsckbmap.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsckconn.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsckdire.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsckdtre.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsckea.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsckimap.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsckino.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsckmeta.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsckpfs.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsckruns.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsckwsp.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fsckxtre.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/xchkdsk.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jfs_icheck.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/lib.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/jfs_icheck.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
@@ -493,15 +468,13 @@ info: info-am
 info-am:
 
 install-data-am: install-man
-	@$(NORMAL_INSTALL)
-	$(MAKE) $(AM_MAKEFLAGS) install-data-hook
+
 install-dvi: install-dvi-am
 
 install-dvi-am:
 
 install-exec-am: install-sbinPROGRAMS
-	@$(NORMAL_INSTALL)
-	$(MAKE) $(AM_MAKEFLAGS) install-exec-hook
+
 install-html: install-html-am
 
 install-html-am:
@@ -539,37 +512,26 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-local uninstall-man uninstall-sbinPROGRAMS
+uninstall-am: uninstall-man uninstall-sbinPROGRAMS
 
 uninstall-man: uninstall-man8
 
-.MAKE: install-am install-data-am install-exec-am install-strip
+.MAKE: install-am install-strip
 
 .PHONY: CTAGS GTAGS all all-am check check-am clean clean-generic \
 	clean-sbinPROGRAMS ctags distclean distclean-compile \
 	distclean-generic distclean-tags distdir dvi dvi-am html \
 	html-am info info-am install install-am install-data \
-	install-data-am install-data-hook install-dvi install-dvi-am \
-	install-exec install-exec-am install-exec-hook install-html \
-	install-html-am install-info install-info-am install-man \
-	install-man8 install-pdf install-pdf-am install-ps \
-	install-ps-am install-sbinPROGRAMS install-strip installcheck \
-	installcheck-am installdirs maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-compile \
-	mostlyclean-generic pdf pdf-am ps ps-am tags uninstall \
-	uninstall-am uninstall-local uninstall-man uninstall-man8 \
+	install-data-am install-dvi install-dvi-am install-exec \
+	install-exec-am install-html install-html-am install-info \
+	install-info-am install-man install-man8 install-pdf \
+	install-pdf-am install-ps install-ps-am install-sbinPROGRAMS \
+	install-strip installcheck installcheck-am installdirs \
+	maintainer-clean maintainer-clean-generic mostlyclean \
+	mostlyclean-compile mostlyclean-generic pdf pdf-am ps ps-am \
+	tags uninstall uninstall-am uninstall-man uninstall-man8 \
 	uninstall-sbinPROGRAMS
 
-
-install-exec-hook:
-	$(LN) -f $(DESTDIR)$(sbindir)/jfs_fsck $(DESTDIR)$(sbindir)/fsck.jfs
-
-install-data-hook:
-	$(LN) -f $(DESTDIR)$(man8dir)/jfs_fsck.8 $(DESTDIR)$(man8dir)/fsck.jfs.8
-
-uninstall-local:
-	rm -f $(DESTDIR)$(sbindir)/fsck.jfs
-	rm -f $(DESTDIR)$(man8dir)/fsck.jfs.8
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

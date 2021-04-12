@@ -1463,6 +1463,7 @@ int dTree_key_extract(struct fsck_Dtree_info *dtiptr,
 
 	if ((*key_length) > JFS_NAME_MAX) {
 		/* name too long */
+printf("CW-DEBUG: in " __FILE__ ", line %d: name too long\n", __LINE__);
 		inorecptr->ignore_alloc_blks = 1;
 	} else {
 		UniChars_left = *key_length;
@@ -1475,6 +1476,7 @@ int dTree_key_extract(struct fsck_Dtree_info *dtiptr,
 		if ((this_slotidx > dtiptr->max_slotidx)
 		    || (this_slotidx < DTENTRYSTART)) {
 			/* idx out of bounds */
+printf("CW-DEBUG: in " __FILE__ ", line %d: idx out of bounds\n", __LINE__);
 			inorecptr->ignore_alloc_blks = 1;
 		} else {
 			/* else no reason to think there's a problem */
@@ -1580,6 +1582,7 @@ int dTree_key_extract_cautiously(struct fsck_Dtree_info *dtiptr,
 
 	if ((*key_length) > JFS_NAME_MAX) {
 		/* name too long */
+printf("CW-DEBUG: in " __FILE__ ", line %d: name too long\n", __LINE__);
 		inorecptr->ignore_alloc_blks = 1;
 	} else {
 		UniChars_left = *key_length;
@@ -1594,6 +1597,7 @@ int dTree_key_extract_cautiously(struct fsck_Dtree_info *dtiptr,
 		    || (temp_slot_map[this_slotidx] != 0)) {
 			/* index is out of bounds OR index was seen earlier this key chain */
 			/* bad chain */
+printf("CW-DEBUG: in " __FILE__ ", line %d: index is out of bounds OR was seen earlier\n", __LINE__);
 			inorecptr->ignore_alloc_blks = 1;
 		} else {
 			/* else no reason to think there's a problem */
@@ -1618,7 +1622,8 @@ int dTree_key_extract_cautiously(struct fsck_Dtree_info *dtiptr,
 				/* it's not the end of chain marker */
 				if (UniChars_left == 0)
 					/* too many segments */
-					inorecptr->ignore_alloc_blks = 1;
+{printf("CW-DEBUG: in " __FILE__ ", line %d: too many segments\n", __LINE__);
+					inorecptr->ignore_alloc_blks = 1;}
 				else {
 					contin_entry_ptr =
 					    &(dtiptr->slots[this_slotidx]);
@@ -1639,6 +1644,7 @@ int dTree_key_extract_cautiously(struct fsck_Dtree_info *dtiptr,
 	       && (this_charidx < *key_length)) {
 		if (((unsigned short *) key_space)[this_charidx] ==
 		    (unsigned short) NULL) {
+printf("CW-DEBUG: in " __FILE__ ", line %d: null character in file name\n", __LINE__);
 			inorecptr->ignore_alloc_blks = 1;
 		} else {
 			this_charidx++;
@@ -1716,6 +1722,7 @@ int dTree_key_extract_record(struct fsck_Dtree_info *dtiptr,
 
 	if ((*key_length) > JFS_NAME_MAX) {
 		/* name too long */
+printf("CW-DEBUG: in " __FILE__ ", line %d: name too long3\n", __LINE__);
 		inorecptr->ignore_alloc_blks = 1;
 	} else {
 		UniChars_left = *key_length;
@@ -1730,6 +1737,7 @@ int dTree_key_extract_record(struct fsck_Dtree_info *dtiptr,
 		    || (dtiptr->slot_map[this_slotidx] != 0)) {
 			/* index is out of bounds OR index was seen in a previous key chain */
 			/* bad chain */
+printf("CW-DEBUG: in " __FILE__ ", line %d: index is out of bounds OR was seen earlier2\n", __LINE__);
 			inorecptr->ignore_alloc_blks = 1;
 		} else {
 			/* else no reason to think there's a problem */
@@ -1754,7 +1762,8 @@ int dTree_key_extract_record(struct fsck_Dtree_info *dtiptr,
 				/* it's not the end of chain marker */
 				if (UniChars_left == 0)
 					/* too many segments */
-					inorecptr->ignore_alloc_blks = 1;
+{printf("CW-DEBUG: in " __FILE__ ", line %d: too many segments2\n", __LINE__);
+					inorecptr->ignore_alloc_blks = 1;}
 				else {
 					contin_entry_ptr =
 					    &(dtiptr->slots[this_slotidx]);
@@ -1775,6 +1784,7 @@ int dTree_key_extract_record(struct fsck_Dtree_info *dtiptr,
 	       && (this_charidx < *key_length)) {
 		if (((unsigned short *) key_space)[this_charidx] ==
 		    (unsigned short) NULL) {
+printf("CW-DEBUG: in " __FILE__ ", line %d: null character in file name2\n", __LINE__);
 			inorecptr->ignore_alloc_blks = 1;
 		} else {
 			this_charidx++;
@@ -1857,6 +1867,7 @@ int dTree_node_first_key(struct fsck_Dtree_info *dtiptr,
 	if (dnfk_rc == FSCK_OK) {
 		if (!keys_ok) {
 			/* invalid key in first slot */
+printf("CW-DEBUG: in " __FILE__ ", line %d: invalid key in first slot\n", __LINE__);
 			inorecptr->ignore_alloc_blks = 1;
 			if (desired_action == FSCK_RECORD_DUPCHECK) {
 				/* not reported yet */
@@ -1920,6 +1931,7 @@ int dTree_node_first_key(struct fsck_Dtree_info *dtiptr,
 				}
 				if (!keys_ok) {
 					/* keys out of sort order! */
+printf("CW-DEBUG: in " __FILE__ ", line %d: keys out of sort order\n", __LINE__);
 					inorecptr->ignore_alloc_blks = 1;
 					if (desired_action ==
 					    FSCK_RECORD_DUPCHECK) {
@@ -1965,6 +1977,7 @@ int dTree_node_first_in_level(struct fsck_Dtree_info *dtiptr,
 
 	if (dtiptr->dtp_ptr->header.prev != 0) {
 		/* bad back pointer! */
+printf("CW-DEBUG: in " __FILE__ ", line %d: bad back pointer\n", __LINE__);
 		inorecptr->ignore_alloc_blks = 1;
 		if (desired_action == FSCK_RECORD_DUPCHECK) {
 			/* not reported */
@@ -2005,6 +2018,7 @@ int dTree_node_last_in_level(struct fsck_Dtree_info *dtiptr,
 
 	if (dtiptr->dtp_ptr->header.next != 0) {
 		/* bad forward pointer! */
+printf("CW-DEBUG: in " __FILE__ ", line %d: bad forward pointer\n", __LINE__);
 		inorecptr->ignore_alloc_blks = 1;
 		if (desired_action == FSCK_RECORD_DUPCHECK) {
 			/* not reported */
@@ -2045,6 +2059,7 @@ int dTree_node_not_first_in_level(struct fsck_Dtree_info *dtiptr,
 
 	if (dtiptr->dtp_ptr->header.prev != dtiptr->last_node_addr) {
 		/* bad back pointer! */
+printf("CW-DEBUG: in " __FILE__ ", line %d: bad back pointer2\n", __LINE__);
 		inorecptr->ignore_alloc_blks = 1;
 		if (desired_action == FSCK_RECORD_DUPCHECK) {
 			/* not reported */
@@ -2087,6 +2102,7 @@ int dTree_node_not_last_in_level(struct fsck_Dtree_info *dtiptr,
 
 	if (dtiptr->dtp_ptr->header.next != dtiptr->next_Qel->node_addr) {
 		/* bad forward pointer! */
+printf("CW-DEBUG: in " __FILE__ ", line %d: bad forward pointer2\n", __LINE__);
 		inorecptr->ignore_alloc_blks = 1;
 		if (desired_action == FSCK_RECORD_DUPCHECK) {
 			/* not reported */
@@ -2175,6 +2191,7 @@ int dTree_node_size_check(struct fsck_Dtree_info *dtiptr,
 		/* it is exactly 1 page long */
 		if (total_slots != (BYTESPERPAGE / DTSLOTSIZE)) {
 			/* but max slots doesn't work out right */
+printf("CW-DEBUG: in " __FILE__ ", line %d: node exactly 1 page long but bad max slots\n", __LINE__);
 			inorecptr->ignore_alloc_blks = 1;
 			if (desired_action == FSCK_RECORD_DUPCHECK) {
 				/* not reported */
@@ -2193,6 +2210,7 @@ int dTree_node_size_check(struct fsck_Dtree_info *dtiptr,
 		if ((!is_leaf) || (!(dtiptr->this_Qel->node_level == 1)) ||
 		    (!first_in_level) || (!last_in_level)) {
 			/* this node does not qualify */
+printf("CW-DEBUG: in " __FILE__ ", line %d: this node does not qualify\n", __LINE__);
 			inorecptr->ignore_alloc_blks = 1;
 			if (desired_action == FSCK_RECORD_DUPCHECK) {
 				/* not reported */
@@ -2211,6 +2229,7 @@ int dTree_node_size_check(struct fsck_Dtree_info *dtiptr,
 			}
 			if (ext_length != acceptable_size) {
 				/* invalid size */
+printf("CW-DEBUG: in " __FILE__ ", line %d: invalid size\n", __LINE__);
 				inorecptr->ignore_alloc_blks = 1;
 				if (desired_action == FSCK_RECORD_DUPCHECK) {
 					/* not reported */
@@ -2222,6 +2241,7 @@ int dTree_node_size_check(struct fsck_Dtree_info *dtiptr,
 				/* the size is ok */
 				if (total_slots != (ext_length / DTSLOTSIZE)) {
 					/* but max slots doesn't work out right */
+printf("CW-DEBUG: in " __FILE__ ", line %d: size ok but bad max slots\n", __LINE__);
 					inorecptr->ignore_alloc_blks = 1;
 					if (desired_action ==
 					    FSCK_RECORD_DUPCHECK) {
@@ -2314,21 +2334,15 @@ int dTree_process_internal_slots(struct fsck_Dtree_info *dtiptr,
 					first_entry = 0;
 				} else {
 					/* it's not the first entry on the page */
-					dpis_rc =
-					    dTree_key_compare_samelvl(&
-								      (key
-								       [last_key]
-								       [0]),
-key_len[last_key], &(key[this_key]
-		     [0]), key_len[this_key], &key_ok);
+					dpis_rc = dTree_key_compare_samelvl(&(key[last_key][0]),
+								      key_len[last_key], &(key[this_key][0]),
+								      key_len[this_key], &key_ok);
 					if (dpis_rc == FSCK_OK) {
 						if (!key_ok) {
 							/* but the key is bad */
-							inorecptr->
-							    ignore_alloc_blks =
-							    1;
-							if (desired_action ==
-							    FSCK_RECORD_DUPCHECK)
+printf("CW-DEBUG: in " __FILE__ ", line %d: not the first entry on the page but the key is bad\n", __LINE__);
+							inorecptr->ignore_alloc_blks = 1;
+							if (desired_action == FSCK_RECORD_DUPCHECK)
 							{
 								/* not reported yet */
 								fsck_send_msg
@@ -2495,6 +2509,7 @@ int dTree_process_leaf_slots(struct fsck_Dtree_info *dtiptr,
 
 			if (!key_ok) {
 				/* but the key is bad */
+printf("CW-DEBUG: in " __FILE__ ", line %d: not the first entry on the page but key is bad2\n", __LINE__);
 				inorecptr->ignore_alloc_blks = 1;
 				if (desired_action == FSCK_RECORD_DUPCHECK) {
 					/* not reported yet */
@@ -2868,6 +2883,7 @@ int dTree_processing(struct dinode *inoptr,
 			/* this isn't an fsck failure --
 			 * it's a symptom of a bad dtree
 			 */
+printf("CW-DEBUG: in " __FILE__ ", line %d: read failed\n", __LINE__);
 			dp_rc = FSCK_OK;
 			inorecptr->ignore_alloc_blks = 1;
 			if (desired_action == FSCK_RECORD_DUPCHECK) {
@@ -2887,6 +2903,7 @@ int dTree_processing(struct dinode *inoptr,
 			   sizeof(pxd_t));
 		if (ixpxd_unequal) {
 			/* bad self pxd in header */
+printf("CW-DEBUG: in " __FILE__ ", line %d: bad self pxd in header\n", __LINE__);
 			inorecptr->ignore_alloc_blks = 1;
 			if (desired_action == FSCK_RECORD_DUPCHECK)
 				/* not reported yet */
@@ -2897,6 +2914,7 @@ int dTree_processing(struct dinode *inoptr,
 			break;
 		} else if (dtiptr->dtp_ptr->header.nextindex == 0) {
 			/* an empty non-root node */
+printf("CW-DEBUG: in " __FILE__ ", line %d: an empty root node\n", __LINE__);
 			inorecptr->ignore_alloc_blks = 1;
 			if (desired_action == FSCK_RECORD_DUPCHECK)
 				/* not reported yet */
@@ -3399,6 +3417,7 @@ int dTree_verify_slot_freelist(struct fsck_Dtree_info *dtiptr,
 	if (dtiptr->freelist_first_dtidx == -1) {
 		/* the list is empty */
 		if (dtiptr->freelist_count > 0) {
+printf("CW-DEBUG: in " __FILE__ ", line %d: the list is empty but the counter is nonzero\n", __LINE__);
 			/* but the counter is nonzero */
 			inorecptr->ignore_alloc_blks = 1;
 			if (desired_action == FSCK_RECORD_DUPCHECK) {
@@ -3416,6 +3435,7 @@ int dTree_verify_slot_freelist(struct fsck_Dtree_info *dtiptr,
 		       (!inorecptr->ignore_alloc_blks) &&
 		       (freelist_size <= dtiptr->freelist_count)) {
 			if (dtiptr->slot_map[freelist_entry]) {
+printf("CW-DEBUG: in " __FILE__ ", line %d: the list is not empty - already marked\n", __LINE__);
 				/* already marked! */
 				inorecptr->ignore_alloc_blks = 1;
 				if (desired_action == FSCK_RECORD_DUPCHECK) {
@@ -3440,6 +3460,7 @@ int dTree_verify_slot_freelist(struct fsck_Dtree_info *dtiptr,
 	if (!inorecptr->ignore_alloc_blks) {
 		/* nothing wrong yet */
 		if (freelist_size != dtiptr->freelist_count) {
+printf("CW-DEBUG: in " __FILE__ ", line %d: size is wrong\n", __LINE__);
 			/* size is wrong */
 			inorecptr->ignore_alloc_blks = 1;
 			if (desired_action == FSCK_RECORD_DUPCHECK) {
@@ -3457,6 +3478,7 @@ int dTree_verify_slot_freelist(struct fsck_Dtree_info *dtiptr,
 		     slotidx++) {
 			if (dtiptr->slot_map[slotidx] == 0) {
 				/* a slot which is not in a key chain and is also not on the free list */
+printf("CW-DEBUG: in " __FILE__ ", line %d: a slot which is not a key chain and not free\n", __LINE__);
 				inorecptr->ignore_alloc_blks = 1;
 				if (desired_action == FSCK_RECORD_DUPCHECK) {
 					/* not reported yet */

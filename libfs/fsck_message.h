@@ -44,15 +44,15 @@ extern int v_send_msg(int, const char *, int, ...);
 #define avail_383              383
 
 #define avail_for_debug_only_590              590
-#define avail_for_debug_only_591              591
-#define avail_for_debug_only_592              592
-#define avail_for_debug_only_593              593
-#define avail_for_debug_only_594              594
-#define avail_for_debug_only_595              595
-#define avail_for_debug_only_596              596
-#define avail_for_debug_only_597              597
-#define avail_for_debug_only_598              598
-#define avail_for_debug_only_599              599
+#define mc_FINISHED                           591
+#define mc_CHECKABORTED                       592
+#define mc_PHASEi                             593
+#define mc_DEFECTFILEFOUND                    594
+#define mc_ERRORMARKINGFILE                   595
+#define mc_SUMMARYDEFECTFILES                 596
+#define mc_ICHECKOKAY                         597
+#define mc_ICHECKERROR                        598
+#define mc_LISTWRITEERROR                     599
 
 
 // symbolic constants for text message inserts

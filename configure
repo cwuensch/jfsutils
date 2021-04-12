@@ -4899,7 +4899,7 @@ if [ "x$exec_prefix" = xNONE -a "x$prefix" = xNONE ]; then
   sbindir="/sbin"
 fi
 
-ac_config_files="$ac_config_files Makefile libfs/Makefile include/Makefile fsck/Makefile fscklog/Makefile logdump/Makefile mkfs/Makefile tune/Makefile xpeek/Makefile jfsutils.spec"
+ac_config_files="$ac_config_files Makefile libfs/Makefile include/Makefile fsck/Makefile fscklog/Makefile logdump/Makefile mkfs/Makefile tune/Makefile xpeek/Makefile icheck/Makefile jfsutils.spec"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -5626,6 +5626,7 @@ do
     "mkfs/Makefile") CONFIG_FILES="$CONFIG_FILES mkfs/Makefile" ;;
     "tune/Makefile") CONFIG_FILES="$CONFIG_FILES tune/Makefile" ;;
     "xpeek/Makefile") CONFIG_FILES="$CONFIG_FILES xpeek/Makefile" ;;
+    "icheck/Makefile") CONFIG_FILES="$CONFIG_FILES icheck/Makefile" ;;
     "jfsutils.spec") CONFIG_FILES="$CONFIG_FILES jfsutils.spec" ;;
 
   *) as_fn_error "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
@@ -5766,7 +5767,7 @@ cat >>$CONFIG_STATUS <<_ACEOF || ac_write_fail=1
 _ACAWK
 cat >>"\$tmp/subs1.awk" <<_ACAWK &&
   for (key in S) S_is_set[key] = 1
-  FS = ""
+  FS = " "
 
 }
 {
@@ -5890,7 +5891,7 @@ s/'"$ac_delim"'/"\\\
 
 cat >>$CONFIG_STATUS <<_ACEOF || ac_write_fail=1
   for (key in D) D_is_set[key] = 1
-  FS = ""
+  FS = " "
 }
 /^[\t ]*#[\t ]*(define|undef)[\t ]+$ac_word_re([\t (]|\$)/ {
   line = \$ 0

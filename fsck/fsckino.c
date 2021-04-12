@@ -16,14 +16,27 @@
  *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 #include <config.h>
+#include <stdlib.h>
 #include <string.h>
 /* defines and includes common among the fsck.jfs modules */
 #include "xfsckint.h"
 #include "jfs_byteorder.h"
 #include "jfs_unicode.h"
 #include "unicode_to_utf8.h"
+#include "../icheck/jfs_icheck.h"
 
- /* + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + +
+/* + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + +
+ *
+ * For message processing
+ *
+ *      defined in xchkdsk.c
+ */
+extern char *Vol_Label;
+extern int mc_parmFixWrongnblocks;
+extern int mc_NrDefectFiles, mc_NrMarkedFiles, mc_maxMarkedFiles;
+extern tInodeData *mc_MarkedFiles;
+
+/* + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + +
   *
   * superblock buffer pointer
   *
@@ -334,6 +347,20 @@ int display_path(uint32_t inoidx, int inopfx, uint32_t ino_parent,
 			/* regular file */
 			fsck_send_msg(fsck_INOPATHOK, fsck_ref_msg(fsck_file),
 				      fsck_ref_msg(inopfx), inoidx, inopath);
+			
+			int i; char *p;
+			for (i = 0; i < mc_NrMarkedFiles; i++)
+			{
+				if (mc_MarkedFiles[i].InodeNr == inoidx)
+				{
+					p = NULL;
+					if (strlen(inopath) >= sizeof(mc_MarkedFiles[i].FileName))
+						p = strrchr(inopath, '/');
+					strncpy(mc_MarkedFiles[i].FileName, ((p && p[1]) ? (p+1) : inopath), sizeof(mc_MarkedFiles[i].FileName) - 1);
+					mc_MarkedFiles[i].FileName[sizeof(mc_MarkedFiles[i].FileName)-1] = '\0';
+					break;
+				}
+			}
 		}
 	} else {
 		/* else a directory w/ multiple parents */
@@ -1403,6 +1430,7 @@ int validate_data(struct dinode *inoptr, uint32_t inoidx,
 		if (inode_is_metadata(inorecptr)) {
 			vd_rc = FSCK_BADMDDATA;
 		} else {
+printf("CW-DEBUG: in " __FILE__ ", line %d: not B+ Tree index\n", __LINE__);
 			inorecptr->selected_to_rls = 1;
 			inorecptr->ignore_alloc_blks = 1;
 			agg_recptr->corrections_needed = 1;
@@ -1470,6 +1498,7 @@ int validate_dir_data(struct dinode *inoptr, uint32_t inoidx,
 		/*
 		 * the data root is not valid...the info cannot be trusted
 		 */
+printf("CW-DEBUG: in " __FILE__ ", line %d: the data root is not valid...\n", __LINE__);
 		inorecptr->selected_to_rls = 1;
 		inorecptr->ignore_alloc_blks = 1;
 		agg_recptr->corrections_needed = 1;
@@ -1863,6 +1892,7 @@ int validate_record_fileset_inode(uint32_t inonum, uint32_t inoidx,
 
 	if (!(inode_type_recognized(inoptr))) {
 		/* bad type */
+printf("CW-DEBUG: in " __FILE__ ", line %d: bad type\n", __LINE__);
 		inorecptr->inode_type = unrecognized_inode;
 		ino_msg_info_ptr->msg_inotyp = fsck_file;
 		inorecptr->selected_to_rls = 1;
@@ -1970,16 +2000,50 @@ int validate_record_fileset_inode(uint32_t inonum, uint32_t inoidx,
 			     agg_recptr->this_inode.all_blks);
 #endif
 
-			fsck_send_msg(fsck_BADKEYS,
-				      fsck_ref_msg(ino_msg_info_ptr->msg_inotyp),
-				      fsck_ref_msg(ino_msg_info_ptr->msg_inopfx),
-				      ino_msg_info_ptr->msg_inonum,
-				      9);
+			mc_NrDefectFiles++;
+			fsck_send_msg(mc_DEFECTFILEFOUND,
+				      inonum,
+				      inoptr->di_nblocks,
+				      agg_recptr->this_inode.all_blks,
+				      inoptr->di_size);
 
-			inorecptr->selected_to_rls = 1;
-			inorecptr->ignore_alloc_blks = 1;
-			agg_recptr->corrections_needed = 1;
-			bad_size = -1;
+			tInodeData curInodeDat;
+			curInodeDat.InodeNr = inonum;
+			curInodeDat.di_size = inoptr->di_size;
+			curInodeDat.nblocks_real = agg_recptr->this_inode.all_blks;
+			curInodeDat.nblocks_wrong = inoptr->di_nblocks;
+			memset(curInodeDat.FileName, '\0', sizeof(curInodeDat.FileName));
+			curInodeDat.LastFixTime = 0;
+
+			if (mc_NrMarkedFiles < mc_maxMarkedFiles)
+			{
+				mc_MarkedFiles[mc_NrMarkedFiles] = curInodeDat;
+				mc_NrMarkedFiles++;
+			}
+			else
+			{
+//fprintf(stdout, "realloc of list buffer: %d\n", (mc_maxMarkedFiles + 10) * sizeof(tInodeData));
+				tInodeData *temp = (tInodeData*) realloc(mc_MarkedFiles, (mc_maxMarkedFiles + 10) * sizeof(tInodeData));
+				if (temp != NULL)
+				{
+					mc_MarkedFiles = temp;
+					mc_maxMarkedFiles += 10;
+					mc_MarkedFiles[mc_NrMarkedFiles] = curInodeDat;
+					mc_NrMarkedFiles++;
+				}
+				else
+					fsck_send_msg(mc_ERRORMARKINGFILE, inonum);
+			}
+
+			if (mc_parmFixWrongnblocks)
+				inoptr->di_nblocks = agg_recptr->this_inode.all_blks;
+//			else
+			{
+				inorecptr->selected_to_rls = 1;
+				inorecptr->ignore_alloc_blks = 1;
+				agg_recptr->corrections_needed = 1;
+				bad_size = -1;
+			}
 		} else {
 			/*
 			 * the data size (in bytes) must not exceed the total
@@ -2012,13 +2076,14 @@ int validate_record_fileset_inode(uint32_t inonum, uint32_t inoidx,
 				 * then object size (in bytes) is is wrong
 				 * - tree must be bad.
 				 */
-#ifdef _JFS_DEBUG
+printf("CW-DEBUG: in " __FILE__ ", line %d: object size is wrong\n", __LINE__);
+//#ifdef _JFS_DEBUG
 				printf
-				    ("inode: %ld (t)   min_size = %lld (t)   "
+				    ("inode: %u (t)   min_size = %lld (t)   "
 				     "max_size = %lld (t)  di_size = %lld (t)\n",
 				     inonum, min_size, max_size,
 				     inoptr->di_size);
-#endif
+//#endif
 				fsck_send_msg(fsck_BADKEYS,
 					      fsck_ref_msg(ino_msg_info_ptr->msg_inotyp),
 					      fsck_ref_msg(ino_msg_info_ptr->msg_inopfx),
