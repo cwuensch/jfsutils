@@ -29,6 +29,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/sysmacros.h>
 
 #ifdef HAVE_SYS_MOUNT_H
 #ifdef HAVE_SYS_PARAM_H

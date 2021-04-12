@@ -1,0 +1,59 @@
+name: Build for all
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  release:
+    types: [ created ]
+
+jobs:
+  tmsbuild:
+    name: Build for Topfield TMS
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository and submodules
+      uses: actions/checkout@v2
+#      with:
+#        submodules: recursive
+
+    - name: Compile code in container
+#      run: |
+#        docker run --rm -v ${{ github.workspace }}:/tap --workdir "/tap" --env FBLib="MergeIntoMC" cwuensch/tmsbuild:FBLib "mkdir -p build ; cd build ; ../configure --host=mipsel-linux-uclibc CFLAGS='-Os -static -W -Wall -fno-strict-aliasing -funsigned-char' LDFLAGS='-static' ; sed -i 's/^DEFS =/DEFS = -Dfsck_BUILD/' fsck/Makefile ; make"
+      uses: docker://cwuensch/tmsbuild:FBLib
+      with:
+        FBLib: MergeIntoMC
+        args: "\"mkdir -p build ; cd build ; ../configure --host=mipsel-linux-uclibc CFLAGS='-Os -static -W -Wall -fno-strict-aliasing -funsigned-char' LDFLAGS='-static' ; sed -i 's/^DEFS =/DEFS = -Dfsck_BUILD/' fsck/Makefile ; make\""
+
+    - name: Move compiled files
+      run: |
+        mkdir target
+        cp build/fsck/jfs_fsck target/
+        cp build/icheck/jfs_icheck target/
+        cp build/xpeek/jfs_debugfs target/
+        cp build/mkfs/jfs_mkfs target/
+        cp build/tune/jfs_tune target/
+        cp build/logdump/jfs_logdump target/
+        cp build/fscklog/jfs_fscklog target/
+
+    - name: Copy build artefact
+      uses: actions/upload-artifact@v2
+      with:
+        name: jfsutils_TMS
+        path: ${{ github.workspace }}/target
+
+    - name: Create zip archive
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        cd ${{ github.workspace }}/target
+        zip -9 -r ${{ github.workspace }}/jfsutils_TMS.zip *
+
+    - name: Upload release binaries
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        files: ${{ github.workspace }}/jfsutils_TMS.zip
